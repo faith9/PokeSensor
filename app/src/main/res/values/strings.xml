@@ -12,6 +12,7 @@
     <string name="action_twitter">Twitter</string>
     <string name="action_facebook">Facebook</string>
     <string name="action_moreapps">More Apps</string>
+    <string name="action_update">Check For Updates</string>
 
     <string name="loginTitle">Login with a Pokemon Trainer Club account</string>
     <string name="loginMessage">This is an UNOFFICIAL login to the Pokemon Go servers, so you can get the Pokemon data straight from the source\n\nI recommend creating a dummy account to use with this app instead of your real account, in case scanning gets the account banned.\n\nLOGIN AT YOUR OWN RISK</string>
@@ -56,4 +57,9 @@
 
     <string name="aboutTitle">About</string>
     <string name="aboutMessage">Made by Patrick Ballard (Logick LLC)\n\nUses PokeGOAPI-Java, available under GPLv3 License at https://github.com/Grover-c13/PokeGOAPI-Java\n\nUses the Trilateration library available under MIT License at https://github.com/lemmingapex/Trilateration\n\nUses the Apache Commons Math3 library available under Apache 2.0 License at http://commons.apache.org/proper/commons-math/download_math.cgi\n\nAction Bar Icons available at icons8.com\nMagnifying glass available under Creative Commons Attribution License at http://freedesignfile.com/\nPokeball image available under Creative Commons Attribution-ShareAlike License at https://commons.wikimedia.org/wiki/File:Poké_Ball.svg\nAvailable under GPLv3 License at https://github.com/MrPat/PokeSensor</string>
+
+    <string name="updateTitle">New Update Available</string>
+    <string name="updateMessage">There is a new update available for PokeSensor! Would you like to update?</string>
+    <string name="update">Update</string>
+    <string name="upToDate">PokeSensor is currently up to date!</string>
 </resources>

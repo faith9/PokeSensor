@@ -2,14 +2,13 @@ package com.logickllc.pokemapper;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationManager;
 import android.net.Uri;
@@ -17,22 +16,18 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.*;
+import android.support.v4.BuildConfig;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.text.method.LinkMovementMethod;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.amazon.device.ads.Ad;
@@ -59,49 +54,24 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.Circle;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
-import com.lemmingapex.trilateration.NonLinearLeastSquaresSolver;
-import com.lemmingapex.trilateration.TrilaterationFunction;
-import com.logickllc.pokemapper.api.MapHelper;
-import com.logickllc.pokemapper.api.NearbyPokemonGPS;
-import com.logickllc.pokemapper.api.WildPokemonTime;
-import com.pokegoapi.api.PokemonGo;
-import com.pokegoapi.api.map.MapObjects;
-import com.pokegoapi.api.map.pokemon.CatchablePokemon;
-import com.pokegoapi.auth.PtcCredentialProvider;
+import com.logickllc.pokesensor.api.MapHelper;
 import com.pokegoapi.exceptions.LoginFailedException;
-import com.pokegoapi.exceptions.RemoteServerException;
 
-import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
-import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
-import org.apache.commons.math3.geometry.euclidean.twod.Vector2D;
-
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.GregorianCalendar;
-import java.util.HashSet;
 import java.util.Hashtable;
-import java.util.List;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ConcurrentHashMap;
-
-import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
-import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
-import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
-import POGOProtos.Networking.Envelopes.RequestEnvelopeOuterClass;
-import okhttp3.OkHttpClient;
-
-import android.view.ViewGroup.LayoutParams;
 
 public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyCallback, LocationListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
     private final String PREF_FIRST_LOAD = "FirstLoad";
@@ -115,8 +85,11 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     //private TourGuide mTutorialHandler;
     private boolean abortLogin = false;
     private static final BigInteger BI_2_64 = BigInteger.ONE.shiftLeft(64);
-    private AndroidMapHelper mapHelper = new AndroidMapHelper(this);
-    private AndroidFeatures features = new AndroidFeatures(this);
+    public static AndroidMapHelper mapHelper;
+    public static AndroidFeatures features;
+    private final String VERSION_URL = "https://raw.githubusercontent.com/MrPat/PokeSensor/master/version.txt";
+    private final String UPDATE_URL = "https://pokesensor.org";
+    private boolean userWantsUpdate = false;
 
     // This manages all the timers I use and only lets them count down while the activity is in the foreground
     private AndroidTimerManager timerManager = new AndroidTimerManager();
@@ -125,7 +98,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     private boolean isActivityVisible = true;
 
     //These are all related to ads
-    public static final boolean IS_AD_TESTING = true; // TODO Flag that determines whether to show test ads or live ads
+    public static final boolean IS_AD_TESTING = false; // TODO Flag that determines whether to show test ads or live ads
     public final String AMAZON_APP_ID = ""; //Need this for the ad impressions to be credited to me
     public final String ADMOB_BANNER_AD_ID = ""; //Need this to get credit for admob banner impressions
     public final String TEST_KINDLE_DEVICE_ID = ""; //This is just for testing with my tablet with admob
@@ -157,6 +130,9 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        mapHelper = new AndroidMapHelper(this);
+        features = new AndroidFeatures(this);
+
         mapHelper.setFeatures(features);
         features.setMapHelper(mapHelper);
 
@@ -184,7 +160,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
         mapHelper.setScanPointIcon(BitmapDescriptorFactory.fromResource(R.drawable.scan_point_icon));
 
-
+        delayCheckForAppUpdate();
     }
 
     @Override
@@ -241,6 +217,71 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         timersPaused = timerManager.pauseTimers();
 
         mapHelper.stopCountdownTimer();
+    }
+
+    public void delayCheckForAppUpdate() {
+        userWantsUpdate = false;
+        Thread updateThread = new Thread() {
+            public void run() {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                checkForAppUpdate();
+            }
+        };
+        updateThread.start();
+    }
+
+    public void checkForAppUpdate() {
+        final Activity act = this;
+        Thread updateThread = new Thread() {
+            public void run() {
+                try {
+                    // Create a URL for the desired page
+                    URL url = new URL(VERSION_URL);
+
+                    // Read all the text returned by the server
+                    BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()));
+                    String str = in.readLine();
+                    PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+                    int version = pInfo.versionCode;
+                    Log.d(TAG, "Server version code: " + Integer.parseInt(str));
+                    Log.d(TAG, "Current version code: " + version);
+                    if (Integer.parseInt(str) > version) {
+                        Runnable runnable = new Runnable() {
+                            public void run() {
+                                AlertDialog.Builder builder = new AlertDialog.Builder(act);
+                                builder.setTitle(R.string.updateTitle);
+                                builder.setMessage(R.string.updateMessage);
+                                builder.setPositiveButton(R.string.update, new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(UPDATE_URL)));
+                                    }
+                                });
+                                builder.setNegativeButton(R.string.cancelButton, new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        // Nothing
+                                    }
+                                });
+                                builder.create().show();
+                            }
+                        };
+                        runOnUiThread(runnable);
+                    } else if (userWantsUpdate) {
+                        features.longMessage(R.string.upToDate);
+                    }
+                    in.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        updateThread.start();
     }
 
     public void startInterstitialTimer() {
@@ -677,6 +718,11 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
             case R.id.action_moreapps:
                 moreApps();
+                return true;
+
+            case R.id.action_update:
+                userWantsUpdate = true;
+                checkForAppUpdate();
                 return true;
 
             default:

@@ -15,11 +15,9 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.logickllc.pokemapper.api.Features;
+import com.logickllc.pokesensor.api.Features;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.auth.PtcCredentialProvider;
-import com.pokegoapi.exceptions.LoginFailedException;
-import com.pokegoapi.exceptions.RemoteServerException;
 
 import okhttp3.OkHttpClient;
 
@@ -51,7 +49,7 @@ public class AndroidFeatures extends Features {
         else return;
         Thread loginThread = new Thread() {
             public void run() {
-                Log.d(TAG, "Attempting to login...");
+                print(TAG, "Attempting to login...");
                 try {
                     final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(act);
                     token = preferences.getString(PREF_TOKEN, "");
@@ -62,7 +60,7 @@ public class AndroidFeatures extends Features {
                         final int MAX_TRIES = 3;
                         while (trying) {
                             try {
-                                Log.d(TAG, "Attempting to login with token: " + token);
+                                print(TAG, "Attempting to login with token: " + token);
 
                                 OkHttpClient httpClient = new OkHttpClient();
                                 go = new PokemonGo(auth, httpClient);
@@ -81,7 +79,7 @@ public class AndroidFeatures extends Features {
                                 } else {
                                     e.printStackTrace();
                                     token = "";
-                                    Log.d(TAG, "Erasing token because it seems to be expired.");
+                                    print(TAG, "Erasing token because it seems to be expired.");
                                     SharedPreferences.Editor editor = preferences.edit();
                                     editor.putString(PREF_TOKEN, token);
                                     editor.commit();
@@ -127,13 +125,13 @@ public class AndroidFeatures extends Features {
                                             OkHttpClient httpClient = new OkHttpClient();
                                             //RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth = null;
                                             try {
-                                                //Log.d(TAG, "Attempting to login with Username: " + username + " and password: " + password);
+                                                //print(TAG, "Attempting to login with Username: " + username + " and password: " + password);
 
                                                 PtcCredentialProvider provider = new PtcCredentialProvider(httpClient, username, password);
                                                 go = new PokemonGo(provider, httpClient);
                                                 shortMessage(R.string.loginSuccessfulMessage);
                                                 token = provider.getTokenId();
-                                                //Log.d(TAG, "Token: " + token);
+                                                //print(TAG, "Token: " + token);
                                                 SharedPreferences.Editor editor = preferences.edit();
                                                 editor.putString(PREF_TOKEN, token);
                                                 editor.commit();
@@ -195,13 +193,13 @@ public class AndroidFeatures extends Features {
                                                 while (trying) {
                                                     OkHttpClient httpClient = new OkHttpClient();
                                                     try {
-                                                        //Log.d(TAG, "Attempting to login with Username: " + username.getText().toString() + " and password: " + password.getText().toString());
+                                                        //print(TAG, "Attempting to login with Username: " + username.getText().toString() + " and password: " + password.getText().toString());
 
                                                         PtcCredentialProvider provider = new PtcCredentialProvider(httpClient, username.getText().toString(), password.getText().toString());
                                                         go = new PokemonGo(provider, httpClient);
                                                         shortMessage(R.string.loginSuccessfulMessage);
                                                         token = provider.getTokenId();
-                                                        //Log.d(TAG, "Token: " + token);
+                                                        //print(TAG, "Token: " + token);
                                                         SharedPreferences.Editor editor = preferences.edit();
                                                         editor.putString(PREF_TOKEN, token);
                                                         editor.commit();
@@ -243,7 +241,7 @@ public class AndroidFeatures extends Features {
 
 
                 } catch (Exception e) {
-                    Log.d(TAG, "Login failed...");
+                    print(TAG, "Login failed...");
                     e.printStackTrace();
                     unlockLogin();
                 }
@@ -282,6 +280,11 @@ public class AndroidFeatures extends Features {
         });
 
         builder.create().show();
+    }
+
+    @Override
+    public void print(String tag, String message) {
+        Log.d(tag, message);
     }
 
     @Override

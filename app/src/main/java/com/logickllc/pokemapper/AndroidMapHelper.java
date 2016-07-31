@@ -3,18 +3,16 @@ package com.logickllc.pokemapper;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.location.Location;
+import android.preference.PreferenceManager;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -26,9 +24,8 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.lemmingapex.trilateration.NonLinearLeastSquaresSolver;
 import com.lemmingapex.trilateration.TrilaterationFunction;
-import com.logickllc.pokemapper.api.MapHelper;
-import com.logickllc.pokemapper.api.NearbyPokemonGPS;
-import com.logickllc.pokemapper.api.WildPokemonTime;
+import com.logickllc.pokesensor.api.MapHelper;
+import com.logickllc.pokesensor.api.WildPokemonTime;
 import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.exceptions.LoginFailedException;
 
@@ -182,6 +179,7 @@ public class AndroidMapHelper extends MapHelper {
         if (!features.loggedIn()) return;
         searched = true;
         abortScan = false;
+        updateScanSettings();
         if (scanDistance > MAX_SCAN_DISTANCE) scanDistance = MAX_SCAN_DISTANCE;
         final Context con = act;
         final LinearLayout scanLayout = (LinearLayout) act.findViewById(R.id.scanLayout);
@@ -194,7 +192,7 @@ public class AndroidMapHelper extends MapHelper {
                 final ArrayList<Long> ids = new ArrayList<Long>(noTimes);
 
                 for (Long id : ids) {
-                    Log.d(TAG, "Removed poke marker!");
+                    features.print(TAG, "Removed poke marker!");
                     Marker marker = pokeMarkers.remove(id);
                     marker.remove();
                 }
@@ -212,7 +210,7 @@ public class AndroidMapHelper extends MapHelper {
 
                 DisplayMetrics metrics = act.getResources().getDisplayMetrics();
                 paddingTop = Math.round(scanLayout.getMeasuredHeight() * metrics.density) + 2;
-                Log.d(TAG, "Padding top: " + paddingTop);
+                features.print(TAG, "Padding top: " + paddingTop);
                 mMap.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
 
                 noTimes.clear();
@@ -235,8 +233,8 @@ public class AndroidMapHelper extends MapHelper {
                         };
                         features.runOnMainThread(circleRunnable);
 
-                        Log.d(TAG, "Scan distance: " + scanDistance);
-                        Log.d(TAG, "Scan interval: " + SCAN_INTERVAL);
+                        features.print(TAG, "Scan distance: " + scanDistance);
+                        features.print(TAG, "Scan interval: " + SCAN_INTERVAL);
 
                         totalNearbyPokemon.clear();
                         totalEncounters.clear();
@@ -274,7 +272,7 @@ public class AndroidMapHelper extends MapHelper {
                             }
                             final LatLng loc = boundingBox[n];
                             try {
-                                if (!first) Thread.sleep(Math.max(SCAN_INTERVAL, 500));
+                                if (!first) Thread.sleep(Math.max(SCAN_INTERVAL, (long) MapHelper.minScanTime * 1000));
                                 else first = false;
 
                                 if (abortScan) {
@@ -363,7 +361,7 @@ public class AndroidMapHelper extends MapHelper {
                                     Runnable markerRunnable = new Runnable() {
                                         @Override
                                         public void run() {
-                                            Log.d(TAG, "Adding marker for " + finalName + " at " + target.toString());
+                                            features.print(TAG, "Adding marker for " + finalName + " at " + target.toString());
                                             showPokemonAt(finalName, target, System.currentTimeMillis(), false);
                                         }
                                     };
@@ -384,7 +382,7 @@ public class AndroidMapHelper extends MapHelper {
                             Runnable dismissRunnable = new Runnable() {
                                 @Override
                                 public void run() {
-                                    //dialog.dismiss();
+                                    //diafeatures.printismiss();
                                     if (scanPoint != null) scanPoint.remove();
                                     if (scanPointCircle != null) scanPointCircle.remove();
 
@@ -430,7 +428,7 @@ public class AndroidMapHelper extends MapHelper {
 
     public boolean scanForPokemon(double lat, double lon) {
         try {
-            Log.d(TAG, "Scanning (" + lat + "," + lon + ")...");
+            features.print(TAG, "Scanning (" + lat + "," + lon + ")...");
             features.go.setLocation(lat, lon, 0);
             final List<CatchablePokemon> pokes = features.getCatchablePokemon(features.go, 9);
             final List<NearbyPokemonOuterClass.NearbyPokemon> nearbyPokes = features.getNearbyPokemon(features.go, 9);
@@ -446,7 +444,7 @@ public class AndroidMapHelper extends MapHelper {
                     if (timeMs > 0) {
                         long despawnTime = System.currentTimeMillis() + timeMs;
                         pokeTimes.put(poke.getEncounterId(), new WildPokemonTime(poke, despawnTime));
-                        Log.d(TAG, poke.getPokemonData().getPokemonId() + " will despawn at " + despawnTime);
+                        features.print(TAG, poke.getPokemonData().getPokemonId() + " will despawn at " + despawnTime);
                     } else if (timeMs < 0) {
                         noTimes.add(poke.getEncounterId());
                     }
@@ -457,26 +455,26 @@ public class AndroidMapHelper extends MapHelper {
             Runnable r = new Runnable() {
                 @Override
                 public void run() {
-                    /*if (pokes.isEmpty()) Log.d("PokeFinder", "No catchable pokes :(");
+                    /*if (pokes.isEmpty()) features.print("PokeFinder", "No catchable pokes :(");
                     for (CatchablePokemon poke : pokes) {
-                        Log.d("PokeFinder", "Found CatchablePokemon: " + poke.toString());
+                        features.print("PokeFinder", "Found CatchablePokemon: " + poke.toString());
                         // TODO Figure out expiration timestamp
                         //showPokemonAt(poke.getPokemonId().name(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), true);
                     }*/
 
-                    if (nearbyPokes.isEmpty()) Log.d("PokeFinder", "No nearby pokes :(");
+                    if (nearbyPokes.isEmpty()) features.print("PokeFinder", "No nearby pokes :(");
                     for (NearbyPokemonOuterClass.NearbyPokemon poke : nearbyPokes) {
-                        //Log.d("PokeFinder", "Found NearbyPokemon: " + poke.toString());
+                        //features.print("PokeFinder", "Found NearbyPokemon: " + poke.toString());
                         //mMap.addCircle(new CircleOptions().center(new LatLng(features.go.getLatitude(), features.go.getLongitude())).radius(poke.getDistanceInMeters()));
                     }
 
-                    if (wildPokes.isEmpty()) Log.d("PokeFinder", "No wild pokes :(");
+                    if (wildPokes.isEmpty()) features.print("PokeFinder", "No wild pokes :(");
                     for (WildPokemonOuterClass.WildPokemon poke : wildPokes) {
-                        Log.d("PokeFinder", "Found WildPokemon: " + poke.toString());
-                        //Log.d(TAG, "Most recent way of finding time till hidden: " +  (poke.getTimeTillHiddenMs() & 0xffffffffL));
-                        //Log.d(TAG, "BigDecimal: " + asString(poke.getTimeTillHiddenMs()));
-                        //Log.d(TAG, "Integer shift: " + Integer.toString(poke.getTimeTillHiddenMs() >> 16));
-                        //Log.d(TAG, "Long shift: " + Long.toString(poke.getTimeTillHiddenMs() >> 16));
+                        features.print("PokeFinder", "Found WildPokemon: " + poke.toString());
+                        //features.print(TAG, "Most recent way of finding time till hidden: " +  (poke.getTimeTillHiddenMs() & 0xffffffffL));
+                        //features.print(TAG, "BigDecimal: " + asString(poke.getTimeTillHiddenMs()));
+                        //features.print(TAG, "Integer shift: " + Integer.toString(poke.getTimeTillHiddenMs() >> 16));
+                        //features.print(TAG, "Long shift: " + Long.toString(poke.getTimeTillHiddenMs() >> 16));
                         /*String time = asString(poke.getTimeTillHiddenMs());
 
                         if (time.length() < 6) {
@@ -485,19 +483,19 @@ public class AndroidMapHelper extends MapHelper {
 
                         String ms = time.substring(time.length() - 6);
                         int sec = Integer.parseInt(ms.substring(0, 3));
-                        Log.d(TAG, "Time til hidden ms: " + asString(poke.getTimeTillHiddenMs()));
-                        if (poke.getTimeTillHiddenMs() < 0) Log.d(TAG, "Time approximation ms: " + (Math.abs(Integer.MIN_VALUE) - Math.abs(poke.getTimeTillHiddenMs())));*/
+                        features.print(TAG, "Time til hidden ms: " + asString(poke.getTimeTillHiddenMs()));
+                        if (poke.getTimeTillHiddenMs() < 0) features.print(TAG, "Time approximation ms: " + (Math.abs(Integer.MIN_VALUE) - Math.abs(poke.getTimeTillHiddenMs())));*/
                         long time = poke.getTimeTillHiddenMs();
                         if (time > 0) {
                             String ms = String.format("%06d", time);
                             int sec = Integer.parseInt(ms.substring(0, 3));
-                            //Log.d(TAG, "Time string: " + time);
-                            //Log.d(TAG, "Time shifted: " + (Long.parseLong(time) >> 16));
-                            Log.d(TAG, "Time till hidden seconds: " + sec + "s");
-                            //Log.d(TAG, "Data for " + poke.getPokemonData().getPokemonId() + ":\n" + poke.getPokemonData());
+                            //features.print(TAG, "Time string: " + time);
+                            //features.print(TAG, "Time shifted: " + (Long.parseLong(time) >> 16));
+                            features.print(TAG, "Time till hidden seconds: " + sec + "s");
+                            //features.print(TAG, "Data for " + poke.getPokemonData().getPokemonId() + ":\n" + poke.getPokemonData());
                             showPokemonAt(poke.getPokemonData().getPokemonId().name(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), true);
                         } else if (time < 0) {
-                            Log.d(TAG, "No valid expiry time given");
+                            features.print(TAG, "No valid expiry time given");
                             showPokemonAt(poke.getPokemonData().getPokemonId().name(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), false);
                         }
                     }
@@ -620,5 +618,33 @@ public class AndroidMapHelper extends MapHelper {
 
     public void stopCountdownTimer() {
         if (countdownTimer != null) countdownTimer.cancel();
+    }
+
+    public void updateScanSettings() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(act);
+        SharedPreferences.Editor editor = prefs.edit();
+
+        try {
+            maxScanDistance = PokeFinderActivity.features.getVisibleScanDistance();
+            editor.putFloat(PREF_MAX_SCAN_DISTANCE, (float) maxScanDistance);
+            editor.apply();
+            features.print("PokeFinder", "Server says max visible scan distance is " + maxScanDistance);
+        } catch (Exception e) {
+            maxScanDistance = prefs.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
+        }
+
+        MAX_SCAN_RADIUS = (int) maxScanDistance;
+        MAX_SCAN_DISTANCE = (int) (2 * MAX_SCAN_RADIUS * 0.9f);
+        MAX_SCAN_DISTANCE = MAX_SCAN_DISTANCE / 10 * 10;
+
+        try {
+            minScanTime = PokeFinderActivity.features.getMinScanRefresh();
+            editor.putFloat(PREF_MIN_SCAN_TIME, (float) minScanTime);
+            features.print("PokeFinder", "Server says min scan refresh is " + minScanTime);
+        } catch (Exception e) {
+            minScanTime = prefs.getFloat(PREF_MIN_SCAN_TIME, 5);
+        }
+
+        minTotalScanTime =  ((int) minScanTime) * (NUM_SCAN_SECTORS - 1);
     }
 }

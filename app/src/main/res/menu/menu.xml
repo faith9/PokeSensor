@@ -60,4 +60,10 @@
         android:icon="@drawable/ic_action_moreapps"
         android:title="@string/action_moreapps"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_update"
+        android:icon="@drawable/ic_action_update"
+        android:title="@string/action_update"
+        app:showAsAction="never" />
 </menu>

@@ -67,7 +67,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:gravity="bottom|center_horizontal"
             ads:adSize="SMART_BANNER"
-            ads:adUnitId="ca-app-pub-5067600245065681/5001703451" />
+            ads:adUnitId="" />
 
     </LinearLayout>
 
