@@ -94,10 +94,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     //These are all related to ads
     public static final boolean IS_AD_TESTING = false; // TODO Flag that determines whether to show test ads or live ads
-    public final String AMAZON_APP_ID = "cef8266d63d64001a83a80a47f329e65"; //Need this for the ad impressions to be credited to me
-    public final String ADMOB_BANNER_AD_ID = "ca-app-pub-5067600245065681/5001703451"; //Need this to get credit for admob banner impressions
-    public final String TEST_KINDLE_DEVICE_ID = "BE1BA1081268C70E990C019175081EA1"; //This is just for testing with my tablet with admob
-    public final String TEST_TABLET_DEVICE_ID = "89529A7BEDF56B9A6431389BEAF83B89";
+    public final String AMAZON_APP_ID = ""; //Need this for the ad impressions to be credited to me
+    public final String ADMOB_BANNER_AD_ID = ""; //Need this to get credit for admob banner impressions
+    public final String TEST_KINDLE_DEVICE_ID = ""; //This is just for testing with my tablet with admob
+    public final String TEST_TABLET_DEVICE_ID = "";
     public final int AMAZON_BANNER_TIMEOUT = 10000; //Amount of time the banner will wait before the request expires and swaps to admob
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
@@ -107,7 +107,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
     public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
     public boolean canShowInterstitial = false; //Flag for determining if interstitial can be shown when the app wants to show one
-    public final String GOOGLE_INTERSTITIAL_AD_ID = "ca-app-pub-5067600245065681/1629434657"; //Admob id for the interstitial. Need this to get credit for impressions
+    public final String GOOGLE_INTERSTITIAL_AD_ID = ""; //Admob id for the interstitial. Need this to get credit for impressions
     public InterstitialAd primaryInterstitial; //Holds the Amazon interstitial
     public com.google.android.gms.ads.InterstitialAd secondaryInterstitial; //Holds the Admob interstitial
     public final int AMAZON_INTERSTITIAL_TIMEOUT = 30000; //How long it takes for an Amazon interstitial request to timeout
