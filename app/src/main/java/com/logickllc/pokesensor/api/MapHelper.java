@@ -14,13 +14,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class MapHelper {
     protected Features features;
-    public final static int NUM_SCAN_SECTORS = 9;
+    public static int NUM_SCAN_SECTORS = 9;
     protected double currentLat;
     protected double currentLon;
     protected boolean searched = false;
     protected boolean abortScan = false;
     protected int scanTime;
     protected int scanDistance;
+    protected int scanSpeed;
     protected ArrayList<NearbyPokemonGPS> totalNearbyPokemon = new ArrayList<NearbyPokemonGPS>();
     protected HashSet<Long> totalEncounters = new HashSet<Long>();
     protected HashSet<Long> totalWildEncounters = new HashSet<Long>();
@@ -30,15 +31,25 @@ public abstract class MapHelper {
     public static final int LOCATION_UPDATE_INTERVAL = 5000;
     protected boolean locationOverride = false;
     public static int MAX_SCAN_RADIUS = 70;
-    public static int MAX_SCAN_DISTANCE = 120;
+    public static final int MAX_SCAN_DISTANCE = 500;
     public static final int DEFAULT_SCAN_DISTANCE = 50;
     public static final int DEFAULT_SCAN_TIME = 40;
+    public static final int DEFAULT_SCAN_SPEED = 20;
     protected boolean locationInitialized = false;
     protected Timer countdownTimer;
     protected ConcurrentHashMap<Long, WildPokemonTime> pokeTimes = new ConcurrentHashMap<Long, WildPokemonTime>();
     public static final String PREF_MAX_SCAN_DISTANCE = "MaxScanDistance";
     public static final String PREF_MIN_SCAN_TIME = "MinScanTime";
     public static double maxScanDistance, minScanTime, minTotalScanTime;
+    public static int maxScanSpeed;
+
+    public int getScanSpeed() {
+        return scanSpeed;
+    }
+
+    public void setScanSpeed(int scanSpeed) {
+        this.scanSpeed = scanSpeed;
+    }
 
     public boolean isLocationOverridden() {
         return locationOverride;

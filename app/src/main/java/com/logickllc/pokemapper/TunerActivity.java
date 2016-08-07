@@ -16,15 +16,15 @@ import com.pokegoapi.api.map.Map;
 public class TunerActivity extends AppCompatActivity {
     final String PREF_SCAN_DISTANCE = "ScanDistance";
     final String PREF_SCAN_TIME = "ScanTime";
+    final String PREF_SCAN_SPEED = "ScanSpeed";
 
-    final int DEFAULT_SCAN_DISTANCE = 120;
-    final int DEFAULT_SCAN_TIME = 40;
+    final int DEFAULT_SCAN_DISTANCE = MapHelper.DEFAULT_SCAN_DISTANCE;
+    final int DEFAULT_SCAN_SPEED = MapHelper.DEFAULT_SCAN_SPEED;
 
     final int DISTANCE_STEP = 10;
-    final int TIME_STEP = 5;
+    final int SPEED_STEP = 1;
 
-    int scanDistance, scanTime;
-    double maxScanDistance, minScanTime;
+    int scanDistance, scanSpeed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,29 +33,34 @@ public class TunerActivity extends AppCompatActivity {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         SharedPreferences.Editor editor = prefs.edit();
         scanDistance = prefs.getInt(PREF_SCAN_DISTANCE, DEFAULT_SCAN_DISTANCE);
-        scanTime = prefs.getInt(PREF_SCAN_TIME, DEFAULT_SCAN_TIME);
+        scanSpeed = prefs.getInt(PREF_SCAN_TIME, DEFAULT_SCAN_SPEED);
 
         PokeFinderActivity.mapHelper.updateScanSettings();
 
         if (scanDistance > MapHelper.MAX_SCAN_DISTANCE) scanDistance = MapHelper.MAX_SCAN_DISTANCE;
-        if (scanTime < MapHelper.minTotalScanTime) scanTime = (int) MapHelper.minTotalScanTime;
+        if (scanSpeed > MapHelper.maxScanSpeed) scanSpeed = (int) MapHelper.maxScanSpeed;
 
         final TextView distance = (TextView) findViewById(R.id.distance);
-        final TextView time = (TextView) findViewById(R.id.time);
+        final TextView speed = (TextView) findViewById(R.id.speed);
+
         SeekBar seekDistance = (SeekBar) findViewById(R.id.seekbarDistance);
         seekDistance.setMax(MapHelper.MAX_SCAN_DISTANCE / DISTANCE_STEP);
-        SeekBar seekTime = (SeekBar) findViewById(R.id.seekbarTime);
-        final TextView scanSpeed = (TextView) findViewById(R.id.scanSpeed);
+
+        SeekBar seekSpeed = (SeekBar) findViewById(R.id.seekbarTime);
+        seekSpeed.setMax(MapHelper.maxScanSpeed / SPEED_STEP);
+
+        final TextView time = (TextView) findViewById(R.id.time);
 
         seekDistance.setProgress(scanDistance / DISTANCE_STEP);
-        seekTime.setProgress(scanTime / TIME_STEP);
+        seekSpeed.setProgress(scanSpeed / SPEED_STEP);
         distance.setText(scanDistance + "m");
-        time.setText(scanTime + "s");
 
-        int scanSpeedMeters = Math.round((float) scanDistance / (scanTime / (float) (MapHelper.NUM_SCAN_SECTORS - 1)) * 3.6f);
+        int scanSpeedMeters = Math.round(scanSpeed * 3.6f);
         int scanSpeedMiles = Math.round(scanSpeedMeters * 0.621371f);
 
-        scanSpeed.setText(scanSpeedMeters + " kph (" + scanSpeedMiles + " mph)");
+        speed.setText(scanSpeedMeters + " kph (" + scanSpeedMiles + " mph)");
+        String timeString = PokeFinderActivity.mapHelper.getTimeString(getDistanceTraveled(scanDistance) / scanSpeed) + "s";
+        time.setText(timeString.replace(":", "m"));
 
         seekDistance.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -67,10 +72,8 @@ public class TunerActivity extends AppCompatActivity {
                 scanDistance = progress * DISTANCE_STEP;
                 distance.setText(scanDistance + "m");
 
-                int scanSpeedMeters = Math.round((float) scanDistance / (scanTime / (float) (MapHelper.NUM_SCAN_SECTORS - 1)) * 3.6f);
-                int scanSpeedMiles = Math.round(scanSpeedMeters * 0.621371f);
-
-                scanSpeed.setText(scanSpeedMeters + " kph (" + scanSpeedMiles + " mph)");
+                String timeString = PokeFinderActivity.mapHelper.getTimeString(Math.round(getDistanceTraveled(scanDistance) / (float) scanSpeed)) + "s";
+                time.setText(timeString.replace(":", "m"));
             }
 
             @Override
@@ -84,20 +87,21 @@ public class TunerActivity extends AppCompatActivity {
             }
         });
 
-        seekTime.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        seekSpeed.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (progress * TIME_STEP < MapHelper.minTotalScanTime) {
-                    seekBar.setProgress((int) MapHelper.minTotalScanTime / TIME_STEP);
+                if (progress * SPEED_STEP < 1) {
+                    seekBar.setProgress(1 / SPEED_STEP);
                     return;
                 }
-                scanTime = progress * TIME_STEP;
-                time.setText(scanTime + "s");
 
-                int scanSpeedMeters = Math.round((float) scanDistance / (scanTime / (float) (MapHelper.NUM_SCAN_SECTORS - 1)) * 3.6f);
+                scanSpeed = progress * SPEED_STEP;
+                int scanSpeedMeters = Math.round(scanSpeed * 3.6f);
                 int scanSpeedMiles = Math.round(scanSpeedMeters * 0.621371f);
 
-                scanSpeed.setText(scanSpeedMeters + " km/h (" + scanSpeedMiles + " mph)");
+                speed.setText(scanSpeedMeters + " kph (" + scanSpeedMiles + " mph)");
+                String timeString = PokeFinderActivity.mapHelper.getTimeString(getDistanceTraveled(scanDistance) / scanSpeed) + "s";
+                time.setText(timeString.replace(":", "m"));
             }
 
             @Override
@@ -110,6 +114,14 @@ public class TunerActivity extends AppCompatActivity {
 
             }
         });
+    }
+
+    public int getDistanceTraveled(int radius) {
+        final int MINI_SQUARE_SIZE = (int) Math.sqrt(Math.pow(MapHelper.MAX_SCAN_RADIUS * 2, 2) / 2);
+        final int BOXES_PER_ROW = (int) Math.ceil(2 * radius / (float) MINI_SQUARE_SIZE);
+        int sectors = BOXES_PER_ROW * BOXES_PER_ROW;
+
+        return MINI_SQUARE_SIZE * (sectors - 1);
     }
 
     @Override
@@ -124,7 +136,7 @@ public class TunerActivity extends AppCompatActivity {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putInt(PREF_SCAN_DISTANCE, scanDistance);
-        editor.putInt(PREF_SCAN_TIME, scanTime);
+        editor.putInt(PREF_SCAN_SPEED, scanSpeed);
         editor.commit();
 
         super.onPause();

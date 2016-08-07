@@ -2,6 +2,7 @@ package com.logickllc.pokemapper;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -16,8 +17,6 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.*;
-import android.support.v4.BuildConfig;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -58,14 +57,10 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.logickllc.pokesensor.api.MapHelper;
-import com.pokegoapi.exceptions.LoginFailedException;
 
 import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.GregorianCalendar;
 import java.util.Hashtable;
@@ -99,10 +94,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     //These are all related to ads
     public static final boolean IS_AD_TESTING = false; // TODO Flag that determines whether to show test ads or live ads
-    public final String AMAZON_APP_ID = ""; //Need this for the ad impressions to be credited to me
-    public final String ADMOB_BANNER_AD_ID = ""; //Need this to get credit for admob banner impressions
-    public final String TEST_KINDLE_DEVICE_ID = ""; //This is just for testing with my tablet with admob
-    public final String TEST_TABLET_DEVICE_ID = "";
+    public final String AMAZON_APP_ID = "cef8266d63d64001a83a80a47f329e65"; //Need this for the ad impressions to be credited to me
+    public final String ADMOB_BANNER_AD_ID = "ca-app-pub-5067600245065681/5001703451"; //Need this to get credit for admob banner impressions
+    public final String TEST_KINDLE_DEVICE_ID = "BE1BA1081268C70E990C019175081EA1"; //This is just for testing with my tablet with admob
+    public final String TEST_TABLET_DEVICE_ID = "89529A7BEDF56B9A6431389BEAF83B89";
     public final int AMAZON_BANNER_TIMEOUT = 10000; //Amount of time the banner will wait before the request expires and swaps to admob
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
@@ -112,7 +107,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
     public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
     public boolean canShowInterstitial = false; //Flag for determining if interstitial can be shown when the app wants to show one
-    public final String GOOGLE_INTERSTITIAL_AD_ID = ""; //Admob id for the interstitial. Need this to get credit for impressions
+    public final String GOOGLE_INTERSTITIAL_AD_ID = "ca-app-pub-5067600245065681/1629434657"; //Admob id for the interstitial. Need this to get credit for impressions
     public InterstitialAd primaryInterstitial; //Holds the Amazon interstitial
     public com.google.android.gms.ads.InterstitialAd secondaryInterstitial; //Holds the Admob interstitial
     public final int AMAZON_INTERSTITIAL_TIMEOUT = 30000; //How long it takes for an Amazon interstitial request to timeout
@@ -125,6 +120,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     private static final Integer AMAZON_DEFAULT_POSITION = 1;
     public long lastBannerLoad = 0;
     private int lastOrientation = 0;
+    private ProgressDialog waitingDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -136,13 +132,18 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         mapHelper.setFeatures(features);
         features.setMapHelper(mapHelper);
 
+        waitingDialog = (ProgressDialog) features.showProgressDialog("Loading Map", "Waiting for Google Map to load");
+
+
         lastOrientation = this.getResources().getConfiguration().orientation;
         Log.d(TAG, "PokeFinderActivity.onCreate()");
         setContentView(R.layout.activity_poke_finder);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
+        features.print(TAG, "Before async map load");
         mapFragment.getMapAsync(this);
+        features.print(TAG, "After async map load");
         mapFragment.setRetainInstance(true);
         // Build Google API Location client
         client = new GoogleApiClient.Builder(this).addApi(LocationServices.API)
@@ -187,11 +188,16 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
 
         Log.d(TAG, "PokeFinderActivity.onResume()");
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        mapHelper.setScanDistance(preferences.getInt(AndroidMapHelper.PREF_SCAN_DISTANCE, MapHelper.DEFAULT_SCAN_DISTANCE));
-        mapHelper.setScanTime(preferences.getInt(AndroidMapHelper.PREF_SCAN_TIME, MapHelper.DEFAULT_SCAN_TIME));
-        if (mapHelper.getScanDistance() > MapHelper.MAX_SCAN_DISTANCE) mapHelper.setScanDistance(MapHelper.MAX_SCAN_DISTANCE);
-
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        mapHelper.setScanDistance(
+                prefs.getInt(AndroidMapHelper.PREF_SCAN_DISTANCE, MapHelper.DEFAULT_SCAN_DISTANCE));
+        mapHelper
+                .setScanSpeed(prefs.getInt(AndroidMapHelper.PREF_SCAN_SPEED, MapHelper.DEFAULT_SCAN_SPEED));
+        if (mapHelper.getScanDistance() > MapHelper.MAX_SCAN_DISTANCE)
+            mapHelper.setScanDistance(MapHelper.MAX_SCAN_DISTANCE);
+        if (MapHelper.maxScanSpeed != 0 && mapHelper.getScanSpeed() > MapHelper.maxScanSpeed)
+            mapHelper.setScanSpeed(MapHelper.maxScanSpeed);
+        
         LocationManager manager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         if (!manager.isProviderEnabled(LocationManager.GPS_PROVIDER) && !manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
             features.longMessage(R.string.noLocationDetected);
@@ -750,6 +756,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
      */
     @Override
     public void onMapReady(GoogleMap googleMap) {
+        waitingDialog.dismiss();
         mMap = googleMap;
         mapHelper.setmMap(mMap);
 

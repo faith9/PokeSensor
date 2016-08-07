@@ -48,6 +48,7 @@ public class AndroidMapHelper extends MapHelper {
 
     public static final String PREF_SCAN_DISTANCE = "ScanDistance";
     public static final String PREF_SCAN_TIME = "ScanTime";
+    public static final String PREF_SCAN_SPEED = "ScanSpeed";
     public static final float DEFAULT_ZOOM = 16f;
 
     private Marker myMarker;
@@ -59,6 +60,7 @@ public class AndroidMapHelper extends MapHelper {
     private Marker scanPoint;
     private Circle scanPointCircle;
     private BitmapDescriptor scanPointIcon;
+    private boolean scanning = false;
 
     public AndroidMapHelper(Activity act) {
         this.act = act;
@@ -177,6 +179,8 @@ public class AndroidMapHelper extends MapHelper {
 
     public void wideScan() {
         if (!features.loggedIn()) return;
+        if (scanning) return;
+        else scanning = true;
         searched = true;
         abortScan = false;
         updateScanSettings();
@@ -198,8 +202,8 @@ public class AndroidMapHelper extends MapHelper {
                 }
 
                 scanBar.setProgress(0);
-                scanBar.setMax(NUM_SCAN_SECTORS);
-                scanText.setText("Scanning for Pokemon (" + NUM_SCAN_SECTORS + " sectors at " + scanDistance + "m radius)");
+                //scanBar.setMax(NUM_SCAN_SECTORS);
+                scanText.setText("");
 
                 scanLayout.setVisibility(View.VISIBLE);
                 scanBar.setVisibility(View.VISIBLE);
@@ -221,20 +225,17 @@ public class AndroidMapHelper extends MapHelper {
                         double lon = currentLon;
                         int offsetMeters = scanDistance;
                         final long METERS_PER_SECOND = 50;
-                        final long SCAN_INTERVAL = Math.round(scanTime * 1000 / (float) (NUM_SCAN_SECTORS - 1));
+
                         failedScanLogins = 0;
 
                         Runnable circleRunnable = new Runnable() {
                             @Override
                             public void run() {
                                 if (scanCircle != null) scanCircle.remove();
-                                scanCircle = mMap.addCircle(new CircleOptions().center(new LatLng(currentLat, currentLon)).strokeWidth(1).radius(0.85f * (scanDistance + MAX_SCAN_RADIUS)).strokeColor(Color.argb(128, 0, 0, 255)));
+                                scanCircle = mMap.addCircle(new CircleOptions().center(new LatLng(currentLat, currentLon)).strokeWidth(1).radius(scanDistance).strokeColor(Color.argb(128, 0, 0, 255)));
                             }
                         };
                         features.runOnMainThread(circleRunnable);
-
-                        features.print(TAG, "Scan distance: " + scanDistance);
-                        features.print(TAG, "Scan interval: " + SCAN_INTERVAL);
 
                         totalNearbyPokemon.clear();
                         totalEncounters.clear();
@@ -246,7 +247,7 @@ public class AndroidMapHelper extends MapHelper {
                         // Calculate bounding box of this point at certain intervals and poll them
                         // all for a complete mapping. Pause a few seconds between polling to not agitate the servers
 
-                        int negOffsetMeters = -1 * offsetMeters;
+                        /*int negOffsetMeters = -1 * offsetMeters;
                         float offsetDiagonal = (float) Math.sin(Math.toRadians(45));
                         float negOffsetDiagonal = -1 * offsetDiagonal;
                         LatLng[] boundingBox = getBoundingBox(lat, lon, offsetMeters);
@@ -259,24 +260,37 @@ public class AndroidMapHelper extends MapHelper {
                                 new Vector2D(offsetDiagonal, offsetDiagonal),
                                 new Vector2D(offsetMeters, 0),
                                 new Vector2D(offsetDiagonal, negOffsetDiagonal),
-                                new Vector2D(0, negOffsetMeters)};
+                                new Vector2D(0, negOffsetMeters)};*/
+
+                        Vector2D[] boxPoints = getSearchPoints(scanDistance);
+                        ArrayList<LatLng> boxList = new ArrayList<LatLng>();
+
+                        final int MINI_SQUARE_SIZE = (int) Math.sqrt(Math.pow(MapHelper.MAX_SCAN_RADIUS * 2, 2) / 2);
+                        final long SCAN_INTERVAL = Math.round(MINI_SQUARE_SIZE / scanSpeed * 1000);
+                        features.print(TAG, "Scan interval: " + SCAN_INTERVAL);
+                        features.print(TAG,  "Min scan time: " + minScanTime * 1000);
+
+                        scanBar.setMax(NUM_SCAN_SECTORS);
 
                         int failedSectors = 0;
 
                         boolean first = true;
-                        for (int n = 0; n < boundingBox.length; n++) {
+                        for (int n = 0; n < boxPoints.length; n++) {
                             // TODO Any changes to this should be reflected in the below identical abort block
                             if (abortScan) {
                                 features.longMessage(R.string.abortScan);
+                                scanning = false;
                                 return;
                             }
-                            final LatLng loc = boundingBox[n];
+                            final LatLng loc = cartesianToCoord(boxPoints[n], new LatLng(lat, lon));
+                            boxList.add(loc);
                             try {
                                 if (!first) Thread.sleep(Math.max(SCAN_INTERVAL, (long) MapHelper.minScanTime * 1000));
                                 else first = false;
 
                                 if (abortScan) {
                                     features.longMessage(R.string.abortScan);
+                                    scanning = false;
                                     return;
                                 }
 
@@ -284,7 +298,7 @@ public class AndroidMapHelper extends MapHelper {
                                 Runnable progressRunnable = new Runnable() {
                                     @Override
                                     public void run() {
-                                        scanDialogMessage = "Scanning for Pokemon (" + NUM_SCAN_SECTORS + " sectors at " + scanDistance + "m radius)";
+                                        scanDialogMessage = "Scanning sector " + sector + "/" + NUM_SCAN_SECTORS + " at " + scanDistance + "m radius";
                                         //dialog.setMessage(scanDialogMessage);
                                         //dialog.setProgress(sector);
                                         scanText.setText(scanDialogMessage);
@@ -306,6 +320,7 @@ public class AndroidMapHelper extends MapHelper {
                                 e.printStackTrace();
                                 if (abortScan) {
                                     features.longMessage(R.string.abortScan);
+                                    scanning = false;
                                     return;
                                 }
                             }
@@ -396,12 +411,13 @@ public class AndroidMapHelper extends MapHelper {
                             if (failedSectors > 0) {
                                 if (failedScanLogins == NUM_SCAN_SECTORS) features.login();
                                 else
-                                    features.shortMessage(failedSectors + " out of " + boundingBox.length + " sectors failed to scan");
+                                    features.shortMessage(failedSectors + " out of " + NUM_SCAN_SECTORS + " sectors failed to scan");
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
                             features.longMessage("Trilateration error. Please inform the developer.");
                         }
+                        scanning = false;
                     }
                 };
 
@@ -511,6 +527,87 @@ public class AndroidMapHelper extends MapHelper {
 
     }
 
+    private Vector2D[] getSearchPoints(int radius) {
+        final int MINI_SQUARE_SIZE = (int) Math.sqrt(Math.pow(MAX_SCAN_RADIUS * 2, 2) / 2);
+        final int BOXES_PER_ROW = (int) Math.ceil(2 * radius / (float) MINI_SQUARE_SIZE);
+        NUM_SCAN_SECTORS = BOXES_PER_ROW * BOXES_PER_ROW;
+
+        boolean isOdd = BOXES_PER_ROW / 2 * 2 == BOXES_PER_ROW ? false : true;
+
+        Vector2D startPoint;
+        if (isOdd) startPoint = Vector2D.ZERO;
+        else {
+            float offset = MAX_SCAN_RADIUS * (float) Math.sin(Math.toRadians(45));
+            startPoint = new Vector2D((-1) * offset, offset);
+        }
+
+        int direction = 0; // 0 = right, 1 = down, 2 = left, 3 = up
+        ArrayList<Vector2D> points = new ArrayList<Vector2D>();
+        points.add(startPoint);
+        int numMoves = 0;
+
+        Vector2D currentPoint = new Vector2D(startPoint.getX(), startPoint.getY());
+
+        print("Mini square radius = " + MINI_SQUARE_SIZE);
+        print("Num scan sectors = " + NUM_SCAN_SECTORS);
+        print("Start point = " + startPoint.toString());
+
+        for (int n = 1; n < NUM_SCAN_SECTORS; n++) {
+            currentPoint = new Vector2D(currentPoint.getX(), currentPoint.getY());
+            int maxMoves = (int) Math.sqrt(n);
+
+            print("Num moves = " + numMoves);
+            print("Max moves = " + maxMoves);
+
+            if (numMoves == maxMoves) {
+                numMoves = 0;
+                direction = (direction + 1) % 4;
+            }
+
+            numMoves++;
+            switch (direction) {
+                case 0:
+                    print("Right " + numMoves);
+                    currentPoint = new Vector2D(currentPoint.getX() + MINI_SQUARE_SIZE, currentPoint.getY());
+                    break;
+                case 1:
+                    print("Down " + numMoves);
+                    currentPoint = new Vector2D(currentPoint.getX(), currentPoint.getY() - MINI_SQUARE_SIZE);
+                    break;
+                case 2:
+                    print("Left " + numMoves);
+                    currentPoint = new Vector2D(currentPoint.getX() - MINI_SQUARE_SIZE, currentPoint.getY());
+                    break;
+                case 3:
+                    print("Up " + numMoves);
+                    currentPoint = new Vector2D(currentPoint.getX(), currentPoint.getY() + MINI_SQUARE_SIZE);
+                    break;
+            }
+
+            print("Current point = " + currentPoint.toString() + "\n");
+            points.add(currentPoint);
+        }
+
+        Vector2D[] pointsArray = new Vector2D[points.size()];
+        points.toArray(pointsArray);
+        return pointsArray;
+    }
+
+    public void print(String message) {
+        features.print(TAG, message);
+    }
+
+    private LatLng cartesianToCoord(Vector2D point, LatLng center) {
+        final double latRadian = Math.toRadians(center.latitude);
+
+        final double metersPerLatDegree = 110574.235;
+        final double metersPerLonDegree = 110572.833 * Math.cos(latRadian);
+        final double deltaLat = point.getY() / metersPerLatDegree;
+        final double deltaLong = point.getX() / metersPerLonDegree;
+
+        LatLng loc = new LatLng(center.latitude + deltaLat, center.longitude + deltaLong);
+        return loc;
+    }
 
 
     public synchronized void showPokemonAt(String name, LatLng loc, long encounterid, boolean hasTime) {
@@ -623,9 +720,11 @@ public class AndroidMapHelper extends MapHelper {
     public void updateScanSettings() {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(act);
         SharedPreferences.Editor editor = prefs.edit();
+        maxScanDistance = prefs.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
+        minScanTime = prefs.getFloat(PREF_MIN_SCAN_TIME, 5);
 
         try {
-            maxScanDistance = PokeFinderActivity.features.getVisibleScanDistance();
+            maxScanDistance = features.getVisibleScanDistance();
             editor.putFloat(PREF_MAX_SCAN_DISTANCE, (float) maxScanDistance);
             editor.apply();
             features.print("PokeFinder", "Server says max visible scan distance is " + maxScanDistance);
@@ -634,17 +733,18 @@ public class AndroidMapHelper extends MapHelper {
         }
 
         MAX_SCAN_RADIUS = (int) maxScanDistance;
-        MAX_SCAN_DISTANCE = (int) (2 * MAX_SCAN_RADIUS * 0.9f);
-        MAX_SCAN_DISTANCE = MAX_SCAN_DISTANCE / 10 * 10;
 
         try {
-            minScanTime = PokeFinderActivity.features.getMinScanRefresh();
+            minScanTime = features.getMinScanRefresh();
             editor.putFloat(PREF_MIN_SCAN_TIME, (float) minScanTime);
+            editor.apply();
             features.print("PokeFinder", "Server says min scan refresh is " + minScanTime);
         } catch (Exception e) {
             minScanTime = prefs.getFloat(PREF_MIN_SCAN_TIME, 5);
         }
 
-        minTotalScanTime =  ((int) minScanTime) * (NUM_SCAN_SECTORS - 1);
+        int distancePerScan = (int) Math.sqrt(Math.pow(MAX_SCAN_RADIUS * 2, 2) / 2);
+        int speed = (int) Math.ceil(distancePerScan / minScanTime);
+        maxScanSpeed = speed;
     }
 }

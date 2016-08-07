@@ -36,15 +36,15 @@
     <string name="tapCancel">(Tap to Cancel)</string>
 
     <string name="welcomeTitle">Welcome!</string>
-    <string name="welcomeMessage">Make sure to enable Location Services for the best app experience.\n\nWARNING: Be careful when using this app. Scanning could get your account banned, so use a dummy account for this app, or at least make the scans look believable. Have fun!</string>
+    <string name="welcomeMessage">Make sure to enable Location Services for the best app experience.\n\nWARNING: Be careful when using this app. Scanning could get your account banned, so use a dummy account for this app, or at least make the scans look believable.\n\nThe best way to get PokeSensor support or news is via Twitter @LogickLLC</string>
 
     <string name="abortScan">Scan aborted</string>
     <string name="noLocationDetected">Cannot detect Location Services. Please enable Location Services for the best experience.</string>
     <string name="timeNotGiven">Time not given</string>
     <string name="leavingIn">Leaving in</string>
 
-    <string name="tunerMessage">You can adjust the scan distance and total scan time. The scanner will scan from your position and from 8 surrounding positions which are determined by the scan distance. This will simulate you walking around a larger area, which gives better scan readings.\n\nBeware of setting values that give you an unreasonable simulated movement speed because that could increase the chances of your account getting banned.</string>
-    <string name="scanSpeedLabel">Your simulated movement speed is</string>
+    <string name="tunerMessage">You can adjust the scan radius, and PokeSensor will scan several sectors to fully cover it. Any Pokemon within the scan circle will reveal itself. Note that wider scans take longer time, as shown by the time estimate below.\n\nYou can also control your movement speed (i.e. how fast the scan moves from one sector to the next).</string>
+    <string name="scanTimeLabel">Estimated scan time</string>
     <string name="title_activity_tuner">Scan Details</string>
 
     <string name="scanTitle">Scan</string>
