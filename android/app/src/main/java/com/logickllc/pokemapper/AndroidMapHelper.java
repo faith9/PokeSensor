@@ -28,6 +28,7 @@ import com.logickllc.pokesensor.api.MapHelper;
 import com.logickllc.pokesensor.api.WildPokemonTime;
 import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.exceptions.LoginFailedException;
+import com.pokegoapi.exceptions.RemoteServerException;
 
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
 import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
@@ -338,9 +339,11 @@ public class AndroidMapHelper extends MapHelper {
                                     if (poke.getPokemon().getEncounterId() == encounter) {
                                         minDistance = Math.min(minDistance, poke.getPokemon().getDistanceInMeters());
                                         name = poke.getPokemon().getPokemonId().name();
-                                        if (poke.getPokemon().getDistanceInMeters() == 200)
+                                        if (poke.getPokemon().getDistanceInMeters() == 200
+                                                || poke.getPokemon().getDistanceInMeters() <= 0.0)
                                             continue;
                                         int index = boxList.indexOf(poke.getCoords());
+                                        if (index == -1) continue;
                                         poke.setCartesianCoords(boxPoints[index]);
                                         triPoints.add(poke);
                                     }
@@ -697,8 +700,10 @@ public class AndroidMapHelper extends MapHelper {
                                 removables.add(poke.getPoke().getEncounterId());
                             } else {
                                 Marker marker = pokeMarkers.get(poke.getPoke().getEncounterId());
-                                marker.setSnippet("Leaves in " + getTimeString(timeLeftMs / 1000 + 1));
-                                if (marker.isInfoWindowShown()) marker.showInfoWindow();
+                                if (marker != null) {
+                                    marker.setSnippet("Leaves in " + getTimeString(timeLeftMs / 1000 + 1));
+                                    if (marker.isInfoWindowShown()) marker.showInfoWindow();
+                                }
                             }
                         }
                         for (Long id : removables) {
@@ -718,6 +723,7 @@ public class AndroidMapHelper extends MapHelper {
     }
 
     public void updateScanSettings() {
+        boolean distanceFailed = false, timeFailed = false;
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(act);
         SharedPreferences.Editor editor = prefs.edit();
         maxScanDistance = prefs.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
@@ -725,10 +731,13 @@ public class AndroidMapHelper extends MapHelper {
 
         try {
             maxScanDistance = features.getVisibleScanDistance();
+            if (maxScanDistance <= 0) throw new RemoteServerException("Unable to get scan distance from server");
             editor.putFloat(PREF_MAX_SCAN_DISTANCE, (float) maxScanDistance);
             editor.apply();
             features.print("PokeFinder", "Server says max visible scan distance is " + maxScanDistance);
         } catch (Exception e) {
+            e.printStackTrace();
+            if (e instanceof RemoteServerException) distanceFailed = true;
             maxScanDistance = prefs.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
         }
 
@@ -736,11 +745,20 @@ public class AndroidMapHelper extends MapHelper {
 
         try {
             minScanTime = features.getMinScanRefresh();
+            if (minScanTime <= 0) throw new RemoteServerException("Unable to get scan delay from server");
             editor.putFloat(PREF_MIN_SCAN_TIME, (float) minScanTime);
             editor.apply();
             features.print("PokeFinder", "Server says min scan refresh is " + minScanTime);
         } catch (Exception e) {
+            e.printStackTrace();
+            if (e instanceof RemoteServerException) timeFailed = true;
             minScanTime = prefs.getFloat(PREF_MIN_SCAN_TIME, 5);
+        }
+
+        if (distanceFailed && timeFailed) {
+            features.skipTOS();
+            //updateScanSettings();
+            //return;
         }
 
         int distancePerScan = (int) Math.sqrt(Math.pow(MAX_SCAN_RADIUS * 2, 2) / 2);

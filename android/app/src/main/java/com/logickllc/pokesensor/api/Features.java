@@ -9,6 +9,7 @@ import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.exceptions.LoginFailedException;
 import com.pokegoapi.exceptions.RemoteServerException;
 
+import POGOProtos.Enums.TutorialStateOuterClass;
 import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
 import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
@@ -161,5 +162,16 @@ public abstract class Features {
         }
 
         if (!serverAlive) throw new LoginFailedException("You are not logged in!");
+    }
+
+    public void skipTOS() {
+        try {
+            //print(TAG, "Skipping TOS...");
+            go.skipTos();
+            //print("Tutorial?", "" + go.getPlayerProfile().getPlayerData().getTutorialStateValue(TutorialStateOuterClass.TutorialState.LEGAL_SCREEN_VALUE));
+        } catch (Exception e) {
+            e.printStackTrace();
+            print(TAG, "Failed to skip TOS");
+        }
     }
 }
