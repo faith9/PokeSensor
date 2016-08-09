@@ -94,10 +94,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     //These are all related to ads
     public static final boolean IS_AD_TESTING = false; // TODO Flag that determines whether to show test ads or live ads
-    public final String AMAZON_APP_ID = ""; //Need this for the ad impressions to be credited to me
-    public final String ADMOB_BANNER_AD_ID = ""; //Need this to get credit for admob banner impressions
-    public final String TEST_KINDLE_DEVICE_ID = ""; //This is just for testing with my tablet with admob
-    public final String TEST_TABLET_DEVICE_ID = "";
+    public String AMAZON_APP_ID; //Need this for the ad impressions to be credited to me
     public final int AMAZON_BANNER_TIMEOUT = 10000; //Amount of time the banner will wait before the request expires and swaps to admob
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
@@ -107,7 +104,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
     public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
     public boolean canShowInterstitial = false; //Flag for determining if interstitial can be shown when the app wants to show one
-    public final String GOOGLE_INTERSTITIAL_AD_ID = ""; //Admob id for the interstitial. Need this to get credit for impressions
     public InterstitialAd primaryInterstitial; //Holds the Amazon interstitial
     public com.google.android.gms.ads.InterstitialAd secondaryInterstitial; //Holds the Admob interstitial
     public final int AMAZON_INTERSTITIAL_TIMEOUT = 30000; //How long it takes for an Amazon interstitial request to timeout
@@ -120,7 +116,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     private static final Integer AMAZON_DEFAULT_POSITION = 1;
     public long lastBannerLoad = 0;
     private int lastOrientation = 0;
-    private ProgressDialog waitingDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,9 +126,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
         mapHelper.setFeatures(features);
         features.setMapHelper(mapHelper);
-
-        waitingDialog = (ProgressDialog) features.showProgressDialog("Loading Map", "Waiting for Google Map to load");
-
 
         lastOrientation = this.getResources().getConfiguration().orientation;
         Log.d(TAG, "PokeFinderActivity.onCreate()");
@@ -155,6 +147,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             //AdRegistration.enableLogging(true);
         }
 
+        AMAZON_APP_ID = getResources().getString(R.string.amazon_ad_id);
 
         initAds();
         showAds();
@@ -352,7 +345,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         secondaryInterstitialLoaded = false;
         secondaryInterstitialFailed = false;
         secondaryInterstitial = new com.google.android.gms.ads.InterstitialAd(this);
-        secondaryInterstitial.setAdUnitId(GOOGLE_INTERSTITIAL_AD_ID);
+        //secondaryInterstitial.setAdUnitId(GOOGLE_INTERSTITIAL_AD_ID);
         secondaryInterstitial.setAdListener(new com.google.android.gms.ads.AdListener() {
 
             @Override
@@ -397,8 +390,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                     .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
                     .setGender(AdRequest.GENDER_MALE)
                     .addTestDevice(AdRequest.DEVICE_ID_EMULATOR) // Emulator
-                    .addTestDevice(TEST_TABLET_DEVICE_ID) // My test tablet
-                    .addTestDevice(TEST_KINDLE_DEVICE_ID)
                     .build();
         }
         secondaryInterstitial.loadAd(adRequest);
@@ -633,8 +624,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                     .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
                     .setGender(AdRequest.GENDER_MALE)
                     .addTestDevice(AdRequest.DEVICE_ID_EMULATOR) // Emulator
-                    .addTestDevice(TEST_TABLET_DEVICE_ID) // My test tablet
-                    .addTestDevice(TEST_KINDLE_DEVICE_ID)
                     .build();
         }
         banner.loadAd(adRequest);
@@ -756,7 +745,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
      */
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        waitingDialog.dismiss();
         mMap = googleMap;
         mapHelper.setmMap(mMap);
 

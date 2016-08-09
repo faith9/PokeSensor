@@ -24,8 +24,8 @@ public abstract class Features {
 
 
     public abstract void runOnMainThread(Runnable r);
-    public abstract Object showProgressDialog(int titleid, int messageid);
-    public abstract Object showProgressDialog(final String title, final String message);
+    public abstract void showProgressDialog(int titleid, int messageid);
+    public abstract void showProgressDialog(final String title, final String message);
     public abstract void shortMessage(int resid);
     public abstract void shortMessage(final String message);
     public abstract void longMessage(int resid);
@@ -167,7 +167,9 @@ public abstract class Features {
     public void skipTOS() {
         try {
             //print(TAG, "Skipping TOS...");
-            go.skipTos();
+            go.setTutorialState();
+            longMessage("Looks like this is a new PTC account. Please wait while the account is activating by logging in again...");
+            login();
             //print("Tutorial?", "" + go.getPlayerProfile().getPlayerData().getTutorialStateValue(TutorialStateOuterClass.TutorialState.LEGAL_SCREEN_VALUE));
         } catch (Exception e) {
             e.printStackTrace();

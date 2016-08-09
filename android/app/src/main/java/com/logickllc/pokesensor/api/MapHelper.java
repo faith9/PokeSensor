@@ -145,7 +145,7 @@ public abstract class MapHelper {
 
     }
 
-    public abstract void updateScanSettings();
+    public abstract boolean updateScanSettings();
 
     public abstract void wideScan();
     public abstract boolean scanForPokemon(double lat, double lon);

@@ -117,7 +117,7 @@ public class AndroidFeatures extends Features {
                                 Thread thread = new Thread() {
                                     @Override
                                     public void run() {
-                                        final ProgressDialog tryingDialog = (ProgressDialog) showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
+                                        showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
                                         boolean trying = true;
                                         int failCount = 0;
                                         final int MAX_TRIES = 10;
@@ -136,7 +136,7 @@ public class AndroidFeatures extends Features {
                                                 editor.putString(PREF_TOKEN, token);
                                                 editor.commit();
                                                 unlockLogin();
-                                                progressDialog.dismiss();
+                                                if (progressDialog != null) progressDialog.dismiss();
                                                 return;
                                             } catch (Exception e) {
                                                 if (++failCount < MAX_TRIES) {
@@ -149,7 +149,7 @@ public class AndroidFeatures extends Features {
                                                     e.printStackTrace();
                                                     longMessage(R.string.loginFailedMessage);
                                                     unlockLogin();
-                                                    progressDialog.dismiss();
+                                                    if (progressDialog != null) progressDialog.dismiss();
                                                     return;
                                                 }
                                             }
@@ -186,7 +186,7 @@ public class AndroidFeatures extends Features {
                                                     editor.putString(PREF_PASSWORD, encode(password.getText().toString()));
                                                     editor.commit();
                                                 }
-                                                final ProgressDialog tryingDialog = (ProgressDialog) showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
+                                                showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
                                                 boolean trying = true;
                                                 int failCount = 0;
                                                 final int MAX_TRIES = 10;
@@ -204,7 +204,7 @@ public class AndroidFeatures extends Features {
                                                         editor.putString(PREF_TOKEN, token);
                                                         editor.commit();
                                                         unlockLogin();
-                                                        progressDialog.dismiss();
+                                                        if (progressDialog != null) progressDialog.dismiss();
                                                         return;
                                                     } catch (Exception e) {
                                                         if (++failCount < MAX_TRIES) {
@@ -217,7 +217,7 @@ public class AndroidFeatures extends Features {
                                                             e.printStackTrace();
                                                             longMessage(R.string.loginFailedMessage);
                                                             unlockLogin();
-                                                            progressDialog.dismiss();
+                                                            if (progressDialog != null) progressDialog.dismiss();
                                                             return;
                                                         }
                                                     }
@@ -292,11 +292,11 @@ public class AndroidFeatures extends Features {
         act.runOnUiThread(r);
     }
 
-    public Object showProgressDialog(int titleid, int messageid) {
-        return showProgressDialog(act.getResources().getString(titleid), act.getResources().getString(messageid));
+    public void showProgressDialog(int titleid, int messageid) {
+        showProgressDialog(act.getResources().getString(titleid), act.getResources().getString(messageid));
     }
 
-    public Object showProgressDialog(final String title, final String message) {
+    public void showProgressDialog(final String title, final String message) {
         final Context con = act;
         Runnable runnable = new Runnable() {
             @Override
@@ -309,7 +309,6 @@ public class AndroidFeatures extends Features {
             }
         };
         runOnMainThread(runnable);
-        return progressDialog;
     }
 
     public void shortMessage(int resid) {

@@ -35,7 +35,6 @@ import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer
 import org.apache.commons.math3.geometry.euclidean.twod.Vector2D;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -722,7 +721,7 @@ public class AndroidMapHelper extends MapHelper {
         if (countdownTimer != null) countdownTimer.cancel();
     }
 
-    public void updateScanSettings() {
+    public boolean updateScanSettings() {
         boolean distanceFailed = false, timeFailed = false;
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(act);
         SharedPreferences.Editor editor = prefs.edit();
@@ -764,5 +763,7 @@ public class AndroidMapHelper extends MapHelper {
         int distancePerScan = (int) Math.sqrt(Math.pow(MAX_SCAN_RADIUS * 2, 2) / 2);
         int speed = (int) Math.ceil(distancePerScan / minScanTime);
         maxScanSpeed = speed;
+
+        return !distanceFailed && !timeFailed;
     }
 }
