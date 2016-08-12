@@ -1,5 +1,5 @@
 # PokeSensor
-Official source for the PokeSensor Android app. Official site is http://www.pokesensor.org
+Official source for the PokeSensor Android/iOS app. Official site is http://www.pokesensor.org
 
 ##Shoutouts
 ###Pokemon GO Java API
