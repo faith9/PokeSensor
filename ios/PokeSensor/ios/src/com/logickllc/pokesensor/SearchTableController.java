@@ -30,25 +30,39 @@ public class SearchTableController extends UITableViewController implements UISe
 
 	@Override
 	public UITableViewCell getCellForRow(UITableView tableView, NSIndexPath indexPath) {
-		UITableViewCell cell = tableView.dequeueReusableCell("cell");
-		MKPlacemark placemark = searchResults.get(indexPath.getRow()).getPlacemark();
-		cell.getTextLabel().setText(placemark.getName());
+		try {
+			UITableViewCell cell = tableView.dequeueReusableCell("cell");
+			MKPlacemark placemark = searchResults.get(indexPath.getRow()).getPlacemark();
+			cell.getTextLabel().setText(placemark.getName());
+
+			String address = placemark.toString();
+			if (address.contains("@")) address = address.substring(0, address.indexOf("@"));
+			address = address.trim();
+			cell.getDetailTextLabel().setText(address);
+			return cell;
+		} catch (Throwable t) {
+			t.printStackTrace();
+			ErrorReporter.logExceptionThreaded(t);
+		}
 		
-		String address = placemark.toString();
-		if (address.contains("@")) address = address.substring(0, address.indexOf("@"));
-		address = address.trim();
-		cell.getDetailTextLabel().setText(address);
-		
-		return cell;
+		return null;
 	}
 
 	@Override
 	public void didSelectRow(UITableView tableView, NSIndexPath indexPath) {
+		if (indexPath.getRow() >= searchResults.size()) {
+			this.dismissViewController(true, new Runnable() {
+				@Override
+				public void run() {
+					MapController.features.longMessage("Search error. Please try again.");
+				}
+			});
+		}
 		final MKPlacemark placemark = searchResults.get(indexPath.getRow()).getPlacemark();
 		Runnable runnable = new Runnable() {
 			public void run() {
 				MapController.mapHelper.setLocationOverride(true);
-				MapController.mapHelper.moveMe(placemark.getCoordinate().getLatitude(), placemark.getCoordinate().getLongitude(), true, true);
+				MapController.mapHelper.moveMe(placemark.getCoordinate().getLatitude(), placemark.getCoordinate().getLongitude(), placemark.getLocation().getAltitude(), true, true);
 			}
 		};
 		this.dismissViewController(true, runnable);
@@ -57,7 +71,7 @@ public class SearchTableController extends UITableViewController implements UISe
 	@Override
 	public void updateSearchResults(UISearchController searchController) {
 		String searchText = searchController.getSearchBar().getText();
-		if (searchText.isEmpty()) return;
+		if (searchText.equals("")) return;
 		MKLocalSearchRequest request = new MKLocalSearchRequest();
 		request.setNaturalLanguageQuery(searchText);
 		
@@ -68,9 +82,14 @@ public class SearchTableController extends UITableViewController implements UISe
 		localSearch.start(new VoidBlock2<MKLocalSearchResponse, NSError>() {
 			@Override
 			public void invoke(MKLocalSearchResponse a, NSError b) {
-				searchResults = new ArrayList<MKMapItem>(a.getMapItems());
-				MapController.features.print("Search", "Results: " + searchResults.toString());
-				getTableView().reloadData();
+				try {
+					if (a == null) return;
+					searchResults = new ArrayList<MKMapItem>(a.getMapItems());
+					//MapController.features.print("Search", "Results: " + searchResults.toString());
+					getTableView().reloadData();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		});
 	}

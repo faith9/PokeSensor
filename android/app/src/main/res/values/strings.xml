@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">PokeSensor</string>
-    <string name="title_activity_poke_finder">@string/app_name</string>
+    <string name="title_activity_poke_finder">PokeSensor</string>
 
     <string name="action_scan">Scan</string>
-    <string name="action_tuner">Scan Details</string>
+    <string name="action_tuner">Scan Settings</string>
     <string name="action_search">Search</string>
     <string name="action_logout">Logout</string>
     <string name="action_help">Help</string>
@@ -13,6 +13,23 @@
     <string name="action_facebook">Facebook</string>
     <string name="action_moreapps">More Apps</string>
     <string name="action_update">Check For Updates</string>
+    <string name="action_dual_accounts">Login 2nd Account</string>
+    <string name="action_dual_logout">Logout 2nd Account</string>
+    <string name="action_spawns">My Spawns</string>
+    <string name="action_spawn_scan">Spawn Scan</string>
+    <string name="action_delete_spawns">Delete All</string>
+    <string name="action_filter">Filter Pokemon</string>
+    <string name="action_add_account">Add Account</string>
+    <string name="action_accounts">Accounts</string>
+    <string name="action_refresh_accounts">Refresh Accounts</string>
+    <string name="action_iv_filter">IV Filter</string>
+    <string name="action_preferences">Preferences</string>
+    <string name="action_import_accounts">Import Accounts</string>
+    <string name="action_export_accounts">Export Accounts</string>
+    <string name="action_delete_accounts">Delete All</string>
+    <string name="action_import_custom_images">Import Images</string>
+    <string name="action_export_custom_images">Export Images</string>
+    <string name="action_custom_images">Custom Pokemon Images</string>
 
     <string name="loginTitle">Login with a Pokemon Trainer Club account</string>
     <string name="loginMessage">This is an UNOFFICIAL login to the Pokemon Go servers, so you can get the Pokemon data straight from the source\n\nI recommend creating a dummy account to use with this app instead of your real account, in case scanning gets the account banned.\n\nLOGIN AT YOUR OWN RISK</string>
@@ -20,8 +37,10 @@
     <string name="password">Enter PTC Password</string>
     <string name="loginButton">Login</string>
     <string name="cancelButton">Cancel</string>
-    <string name="loginSuccessfulMessage">Login successful</string>
-    <string name="loginFailedMessage">Login failed. Could be invalid credentials or servers could be down. Please try again in a few minutes.</string>
+    <string name="loginSuccessfulMessage">login successful</string>
+    <string name="loginFailedMessage">login failed. Go to Help on the toolbar for help with common login problems.</string>
+    <string name="loginBanned">login failed. Your account may be banned.</string>
+    <string name="accountInactive">account has not been activated. Please activate via the email they sent when you signed up.</string>
     <string name="tryingLoginTitle">Logging in...</string>
     <string name="tryingLoginMessage">Trying to login to Pokemon Go servers. This could take a while if the servers are overloaded.</string>
     <string name="rememberLogin">Remember username and password</string>
@@ -45,7 +64,15 @@
 
     <string name="tunerMessage">You can adjust the scan radius, and PokeSensor will scan several sectors to fully cover it. Any Pokemon within the scan circle will reveal itself. Note that wider scans take longer time, as shown by the time estimate below.\n\nYou can also control your movement speed (i.e. how fast the scan moves from one sector to the next).</string>
     <string name="scanTimeLabel">Estimated scan time</string>
-    <string name="title_activity_tuner">Scan Details</string>
+    <string name="title_activity_tuner">Scan Settings</string>
+    <string name="title_activity_spawns">My Spawns</string>
+    <string name="title_activity_filter">Filter</string>
+    <string name="title_activity_captcha">Captcha</string>
+    <string name="title_activity_accounts">Accounts</string>
+    <string name="title_activity_iv_filter">IV Filter</string>
+    <string name="title_activity_preferences">Preferences</string>
+    <string name="title_activity_iv_override">IV Overrides</string>
+    <string name="title_activity_custom_images">Custom Images</string>
 
     <string name="scanTitle">Scan</string>
     <string name="scanDetailsTitle">Scan Details</string>
@@ -62,4 +89,21 @@
     <string name="updateMessage">There is a new update available for PokeSensor! Would you like to update?</string>
     <string name="update">Update</string>
     <string name="upToDate">PokeSensor is currently up to date!</string>
+
+    <string name="noMailActivity">Failed to find an email client on your device.</string>
+    <string name="logoutError">Failed to logout. Please try again in a few seconds</string>
+
+    <string-array name="imageSizes">
+        <item>Small</item>
+        <item>Medium</item>
+        <item>Large</item>
+        <item>XL</item>
+    </string-array>
+
+    <string-array name="imageSizeValues">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
 </resources>

@@ -2,22 +2,21 @@ package com.logickllc.pokemapper;
 
 
 import com.google.android.gms.maps.model.LatLng;
+import com.pokegoapi.api.map.pokemon.NearbyPokemon;
 
 import org.apache.commons.math3.geometry.euclidean.twod.Vector2D;
 
-import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
-
 public class NearbyPokemonGPS {
-    private NearbyPokemonOuterClass.NearbyPokemon pokemon;
+    private NearbyPokemon pokemon;
     private LatLng coords;
     private Vector2D cartesianCoords;
 
-    public NearbyPokemonGPS(NearbyPokemonOuterClass.NearbyPokemon pokemon, LatLng coords) {
+    public NearbyPokemonGPS(NearbyPokemon pokemon, LatLng coords) {
         this.pokemon = pokemon;
         this.coords = coords;
     }
 
-    public NearbyPokemonOuterClass.NearbyPokemon getPokemon() {
+    public NearbyPokemon getPokemon() {
         return pokemon;
     }
 

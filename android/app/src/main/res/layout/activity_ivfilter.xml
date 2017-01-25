@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/activity_ivfilter"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    tools:context="com.logickllc.pokemapper.IVFilterActivity">
+
+    <TextView
+        android:text=""
+        android:layout_width="1dp"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:visibility="invisible"
+        android:id="@+id/textView2"/>
+
+    <TextView
+        android:text="Filter IVs by Attack, Defense, Stamina, or Overall %\n\nIVs are hidden values ranging from 0-15 that influence the overall stats of a Pokemon. Higher IVs are better."
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:textAlignment="center"
+        android:id="@+id/filterMessage"
+        android:layout_marginBottom="25dp"/>
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:text="0"
+        android:ems="3"
+        android:maxEms="3"
+        android:paddingLeft="5dp"
+        android:id="@+id/minPercent"
+        android:layout_alignBaseline="@+id/textView5"
+        android:layout_alignBottom="@+id/textView5"
+        android:layout_toRightOf="@+id/textView4"
+        android:layout_toEndOf="@+id/textView4"/>
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:text="0"
+        android:ems="3"
+        android:maxEms="2"
+        android:paddingLeft="5dp"
+        android:id="@+id/minStamina"
+        android:layout_alignBaseline="@+id/textView4"
+        android:layout_alignBottom="@+id/textView4"
+        android:layout_toRightOf="@+id/textView4"
+        android:layout_toEndOf="@+id/textView4"/>
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:id="@+id/minDefense"
+        android:text="0"
+        android:ems="3"
+        android:maxEms="2"
+        android:paddingLeft="5dp"
+        android:layout_alignBaseline="@+id/textView3"
+        android:layout_alignBottom="@+id/textView3"
+        android:layout_toRightOf="@+id/textView3"
+        android:layout_toEndOf="@+id/textView3"/>
+
+    <TextView
+        android:text="Min IV %"
+        android:paddingRight="5dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView5"
+        android:layout_below="@+id/minStamina"
+        android:layout_alignRight="@+id/textView6"
+        android:layout_alignEnd="@+id/textView6"
+        android:layout_marginTop="17dp"/>
+
+    <TextView
+        android:text="Min Stamina"
+        android:paddingRight="5dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView4"
+        android:layout_marginTop="19dp"
+        android:layout_below="@+id/minDefense"
+        android:layout_alignRight="@+id/textView5"
+        android:layout_alignEnd="@+id/textView5"/>
+
+    <TextView
+        android:text="Min Defense"
+        android:paddingRight="5dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView3"
+        android:layout_marginTop="33dp"
+        android:layout_below="@+id/textView6"
+        android:layout_alignRight="@+id/textView6"
+        android:layout_alignEnd="@+id/textView6"/>
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:text="0"
+        android:ems="3"
+        android:maxEms="2"
+        android:paddingLeft="5dp"
+        android:id="@+id/minAttack"
+        android:layout_alignBaseline="@+id/textView6"
+        android:layout_alignBottom="@+id/textView6"
+        android:layout_toRightOf="@+id/textView2"
+        android:layout_toEndOf="@+id/textView2"/>
+
+    <TextView
+        android:text="Min Attack"
+        android:paddingRight="5dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView6"
+        android:layout_marginTop="13dp"
+        android:layout_below="@+id/filterMessage"
+        android:layout_toLeftOf="@+id/textView2"
+        android:layout_toStartOf="@+id/textView2"/>
+
+    <TextView
+        android:text="Below is the min IV % to override the Pokemon filter. Any filtered Pokemon with at least this IV % will show up despite being filtered."
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:textAlignment="center"
+        android:layout_below="@+id/minPercent"
+        android:id="@+id/filterOverrideMessage"
+        android:layout_marginTop="25dp"/>
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:text="100"
+        android:ems="3"
+        android:maxEms="3"
+        android:id="@+id/minOverride"
+        android:layout_marginTop="7dp"
+        android:layout_below="@+id/filterOverrideMessage"
+        android:layout_centerHorizontal="true"
+        android:textAlignment="center"/>
+
+    <Switch
+        android:text=""
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/minOverride"
+        android:layout_toRightOf="@+id/minOverride"
+        android:layout_toEndOf="@+id/minOverride"
+        android:layout_marginLeft="11dp"
+        android:layout_marginStart="11dp"
+        android:layout_marginBottom="7dp"
+        android:id="@+id/minOverrideEnabled"/>
+</RelativeLayout>

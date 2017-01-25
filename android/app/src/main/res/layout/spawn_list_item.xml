@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_marginLeft="10dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:visibility="invisible"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:textSize="40sp"
+            />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <LinearLayout
+                android:id="@+id/titleLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <ViewSwitcher
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:id="@+id/switcher"
+                    android:gravity="center">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:text="Entirely Too Long Title"
+                    android:ellipsize="marquee"
+                    android:clickable="true"
+                    android:layout_gravity="center_vertical"
+                    android:id="@+id/titleView"
+                    android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+                    <EditText
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:maxLines="1"
+                        android:text="Entirely Too Long Title"
+                        android:layout_gravity="center_vertical"
+                        android:id="@+id/editTitle"
+                        android:singleLine="true"
+                        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+                </ViewSwitcher>
+
+                <ImageView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:scaleType="fitStart"
+                    android:src="@drawable/ic_edit"
+                    android:paddingLeft="5dp"
+                    android:layout_weight="1.2"
+                    android:layout_gravity="center_vertical"
+                    android:adjustViewBounds="true"
+                    android:visibility="gone"
+                    android:id="@+id/edit"/>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="marquee"
+                android:visibility="gone"
+                android:text="Location"
+                android:id="@+id/location"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:gravity="right"
+            android:layout_weight="4.5">
+
+            <ImageView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_history"
+                android:id="@+id/history"
+                android:adjustViewBounds="true"
+                android:paddingLeft="10dp"/>
+
+            <ViewSwitcher
+                android:id="@+id/switcher1"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="#1"
+                    android:gravity="center"
+                    android:textAlignment="center"
+                    android:id="@+id/number1"
+                    android:textAppearance="?android:attr/textAppearanceLarge"/>
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:layout_marginLeft="0dp"
+                    android:id="@+id/history1"
+                    android:adjustViewBounds="true"/>
+
+            </ViewSwitcher>
+
+            <ViewSwitcher
+                android:id="@+id/switcher2"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="#1"
+                    android:gravity="center"
+                    android:textAlignment="center"
+                    android:id="@+id/number2"
+                    android:textAppearance="?android:attr/textAppearanceLarge"/>
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:layout_marginLeft="0dp"
+                    android:id="@+id/history2"
+                    android:adjustViewBounds="true"/>
+
+            </ViewSwitcher>
+
+            <ViewSwitcher
+                android:id="@+id/switcher3"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:text="#1"
+                    android:gravity="center"
+                    android:textAlignment="center"
+                    android:id="@+id/number3"
+                    android:textAppearance="?android:attr/textAppearanceLarge"/>
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:layout_marginLeft="0dp"
+                    android:id="@+id/history3"
+                    android:adjustViewBounds="true"/>
+
+            </ViewSwitcher>
+
+            <!--<ImageView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:layout_marginLeft="0dp"
+                android:id="@+id/history1"
+                android:adjustViewBounds="true"/>
+
+            <ImageView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:layout_marginLeft="0dp"
+                android:id="@+id/history2"
+                android:adjustViewBounds="true"
+                android:layout_centerVertical="true"
+                android:layout_toRightOf="@+id/history1"
+                android:layout_toEndOf="@+id/history1"/>
+
+            <ImageView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:scaleType="fitCenter"
+                android:layout_marginLeft="0dp"
+                android:id="@+id/history3"
+                android:adjustViewBounds="true"
+                android:layout_centerVertical="true"
+                android:layout_toRightOf="@+id/history2"
+                android:layout_toEndOf="@+id/history2"/>-->
+
+            <ImageView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="0.9"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_move"
+                android:id="@+id/move"
+                android:adjustViewBounds="true"
+                android:background="@drawable/image_drawable"
+                android:layout_centerVertical="true"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+</RelativeLayout>

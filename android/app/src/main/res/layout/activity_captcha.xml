@@ -1,0 +1,32 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:layout_gravity="top"
+              android:orientation="vertical"
+              android:layout_margin="10dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text="Please complete the captcha below and click &apos;Done&apos; when you are finished."
+        android:id="@+id/captchaLabel"
+        android:layout_gravity="center_horizontal"/>
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Done"
+        android:id="@+id/captchaDone"
+        android:layout_gravity="center_horizontal"/>
+
+    <WebView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/captchaWebView"
+        android:layout_gravity="center_horizontal"/>
+</LinearLayout>
+
+
+
+

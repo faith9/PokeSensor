@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="CollectSpawns"
+        android:title="Collect Spawn Points" />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="ShowIvs"
+        android:title="Scan IVs" />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="IvsAlwaysVisible"
+        android:title="IVs Always Visible" />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="ShowSpawns"
+        android:title="Show Spawn Points" />
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="ShowScanDetails"
+        android:title="Show Scan Details" />
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="ClearMapOnScan"
+        android:title="Clear Map on Scan" />
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="CaptchaModePopup"
+        android:title="Popup Captchas"
+        android:summary="Toggles whether to popup captchas while scanning"/>
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="Use2Captcha"
+        android:title="Use 2Captcha"
+        android:summary="2Captcha is a paid automated captcha solving service"/>
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="UseNewApi"
+        android:title="Use New API"
+        android:summary="The new API requires a paid key"/>
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="FallbackApi"
+        android:title="Fallback to Old API"
+        android:summary="Use old API if new API fails for any reason"/>
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="GPSModeNormal"
+        android:title="Enable GPS Updates"
+        android:summary="Turn this off to save battery"/>
+
+    <ListPreference
+        android:key="ImageSizeFake"
+        android:entries="@array/imageSizes"
+        android:entryValues="@array/imageSizeValues"
+        android:title="Change Image Size" />
+
+</PreferenceScreen>

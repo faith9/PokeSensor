@@ -45,11 +45,29 @@
 		<pattern>POGOProtos.**</pattern>
 		<pattern>com.pokegoapi.**</pattern>
 		<pattern>net.jpountz.**</pattern>
+		<pattern>org.robovm.bindings.amazon.**</pattern>
+		<pattern>org.robovm.bindings.aerserv.**</pattern>
+		<pattern>org.robovm.bindings.appirater.**</pattern>
+		<pattern>org.robovm.bindings.firebase.**</pattern>
+		<pattern>java.util.logging.ConsoleHandler</pattern>
+		<pattern>com.squareup.moshi.**</pattern>
+		<pattern>com.badlogic.gdx.pay.**</pattern>
+		<pattern>POGOProtos.Settings.Master.PokemonSettingsOuterClass</pattern>
 	</forceLinkClasses>
 	<libs>
 		<lib>z</lib>
-		<lib>libadmob.a</lib>
+		<lib>xml2</lib>
+		<lib>AmazonAd.a</lib>
+		<lib>AerServSDK.a</lib>
+		<lib>AERMoatMobileAppKit.a</lib>
+		<lib>GoogleMobileAds.a</lib>
+		<lib>libappirater.a</lib>
 	</libs>
+
+	<frameworkPaths>
+		<path>frameworks</path>
+	</frameworkPaths>
+
 	<frameworks>
 		<framework>UIKit</framework>
 		<framework>MapKit</framework>
@@ -59,9 +77,33 @@
 		<framework>OpenAL</framework>
 		<framework>AudioToolbox</framework>
 		<framework>AVFoundation</framework>
+		<framework>MediaPlayer</framework>
+		<framework>EventKit</framework>
+		<framework>EventKitUI</framework>
+		<framework>CoreTelephony</framework>
+		<framework>SystemConfiguration</framework>
+		<framework>CoreLocation</framework>
+		<framework>CoreMedia</framework>
+		<framework>MessageUI</framework>
+		<framework>SafariServices</framework>
+		<framework>GLKit</framework>
+		<framework>JavaScriptCore</framework>
+		<framework>CoreMotion</framework>
+		<framework>CoreVideo</framework>
+		<framework>Security</framework>
+		<framework>CFNetwork</framework>
+		<framework>Foundation</framework>
+		<framework>FirebaseAnalytics</framework>
+		<framework>FirebaseAuth</framework>
+		<framework>FirebaseCore</framework>
+		<framework>FirebaseInstanceID</framework>
+		<framework>GoogleInterchangeUtilities</framework>
+		<framework>GoogleSymbolUtilities</framework>
+		<framework>GoogleToolboxForMac</framework>
+		<framework>GTMSessionFetcher</framework>
 	</frameworks>
 	<weakFrameworks>
 		<framework>AdSupport</framework>
+		<framwwork>StoreKit</framwwork>
 	</weakFrameworks>
-	<treeShaker>aggressive</treeShaker>
 </config>

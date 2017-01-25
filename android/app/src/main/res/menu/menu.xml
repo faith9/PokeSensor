@@ -8,9 +8,45 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_accounts"
+        android:icon="@drawable/ic_action_dual_accounts"
+        android:title="@string/action_accounts"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_refresh_accounts"
+        android:icon="@drawable/ic_action_refresh_accounts"
+        android:title="@string/action_refresh_accounts"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_spawns"
+        android:icon="@drawable/ic_action_spawns"
+        android:title="@string/action_spawns"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_spawn_scan"
+        android:icon="@drawable/ic_action_quick"
+        android:title="@string/action_spawn_scan"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_tuner"
         android:icon="@drawable/ic_action_tuner"
         android:title="@string/action_tuner"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_preferences"
+        android:icon="@drawable/ic_action_preferences"
+        android:title="@string/action_preferences"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_custom_images"
+        android:icon="@drawable/ic_action_custom_images"
+        android:title="@string/action_custom_images"
         app:showAsAction="ifRoom" />
 
     <item
@@ -19,22 +55,22 @@
         android:title="@string/action_search"
         app:showAsAction="ifRoom" />
 
-    <!--<item
-        android:id="@+id/action_help"
-        android:icon="@drawable/ic_action_help"
-        android:title="@string/action_help"
-        app:showAsAction="ifRoom" />-->
-
     <item
-        android:id="@+id/action_logout"
-        android:icon="@drawable/ic_action_logout"
-        android:title="@string/action_logout"
+        android:id="@+id/action_filter"
+        android:icon="@drawable/ic_action_filter"
+        android:title="@string/action_filter"
         app:showAsAction="ifRoom" />
 
     <item
-        android:id="@+id/action_contactus"
-        android:icon="@drawable/ic_action_contactus"
-        android:title="@string/action_contactus"
+        android:id="@+id/action_iv_filter"
+        android:icon="@drawable/ic_action_iv_filter"
+        android:title="@string/action_iv_filter"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_help"
+        android:icon="@drawable/ic_action_help"
+        android:title="@string/action_help"
         app:showAsAction="ifRoom" />
 
     <item
@@ -60,6 +96,12 @@
         android:icon="@drawable/ic_action_moreapps"
         android:title="@string/action_moreapps"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_contactus"
+        android:icon="@drawable/ic_action_contactus"
+        android:title="@string/action_contactus"
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_update"

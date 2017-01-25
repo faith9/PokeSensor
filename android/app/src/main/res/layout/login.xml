@@ -31,14 +31,14 @@
         android:hint="@string/password"
         android:inputType="textPassword"/>
 
-    <CheckBox
+    <!--<CheckBox
         android:id="@+id/rememberLogin"
         android:layout_margin="5dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:gravity="center"
-        android:text="@string/rememberLogin"/>
+        android:text="@string/rememberLogin"/>-->
 
     <TextView
         android:id="@+id/createAccountLink"
@@ -47,6 +47,7 @@
         android:text="@string/createAccountMessage"
         android:layout_gravity="center"
         android:gravity="center"
+        android:layout_marginTop="20dp"
         android:clickable="true"/>
 
 </LinearLayout>

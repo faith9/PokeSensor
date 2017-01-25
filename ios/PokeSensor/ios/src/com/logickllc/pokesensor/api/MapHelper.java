@@ -1,11 +1,25 @@
 package com.logickllc.pokesensor.api;
 
-import com.logickllc.pokesensor.NearbyPokemonGPS;
-
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Timer;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.robovm.apple.corelocation.CLGeocoder;
+import org.robovm.apple.corelocation.CLLocation;
+import org.robovm.apple.corelocation.CLLocationCoordinate2D;
+import org.robovm.apple.corelocation.CLPlacemark;
+import org.robovm.apple.foundation.NSArray;
+import org.robovm.objc.block.VoidBlock2;
+
+import com.logickllc.pokesensor.ErrorReporter;
+import com.logickllc.pokesensor.IOSMapHelper;
+import com.logickllc.pokesensor.ImageAnnotation;
+import com.logickllc.pokesensor.NearbyPokemonGPS;
+import com.pokegoapi.api.map.pokemon.CatchablePokemon;
+
+import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 
 public abstract class MapHelper {
     protected Features features;
@@ -20,24 +34,138 @@ public abstract class MapHelper {
 	protected ArrayList<NearbyPokemonGPS> totalNearbyPokemon = new ArrayList<NearbyPokemonGPS>();
     protected HashSet<Long> totalEncounters = new HashSet<Long>();
     protected HashSet<Long> totalWildEncounters = new HashSet<Long>();
-    protected ArrayList<Long> noTimes = new ArrayList<Long>();
     protected final String TAG = "PokeFinder";
     protected int failedScanLogins = 0;
     public static final int LOCATION_UPDATE_INTERVAL = 5000;
     protected boolean locationOverride = false;
     public static int MAX_SCAN_RADIUS = 70;
-    public static final int MAX_SCAN_DISTANCE = 500;
+    public static final int MAX_SCAN_DISTANCE = 1000;
     public static final int DEFAULT_SCAN_DISTANCE = 90;
     public static final int DEFAULT_SCAN_TIME = 40;
     public static final int DEFAULT_SCAN_SPEED = 20;
     protected boolean locationInitialized = false;
     protected Timer countdownTimer;
     protected ConcurrentHashMap<Long, WildPokemonTime> pokeTimes = new ConcurrentHashMap<Long, WildPokemonTime>();
+    protected ConcurrentHashMap<Long, WildPokemonTime> noTimes = new ConcurrentHashMap<>();
     public static final String PREF_MAX_SCAN_DISTANCE = "MaxScanDistance";
     public static final String PREF_MIN_SCAN_TIME = "MinScanTime";
     public static double maxScanDistance, minScanTime, minTotalScanTime;
     public static int maxScanSpeed;
+    public static boolean isHexMode = true;
+
+    public ConcurrentHashMap<String, Spawn> spawns = new ConcurrentHashMap<>();
+    public int newSpawns = 0;
+    public HashSet<String> searchedSpawns = new HashSet<>();
+    public boolean collectSpawns = true;
+    public boolean showIvs = true;
+    public boolean showSpawns = true;
+    final String PREF_COLLECT_SPAWNS = "CollectSpawns";
+    final String PREF_SHOW_IVS = "ShowIvs";
+
+    public boolean scanning = false;
+    public boolean captchaModePopup = true;
+
+    protected int minAttack, minDefense, minStamina, minPercent, minOverride;
+    public static final String PREF_MIN_ATTACK = "MinAttack";
+    public static final String PREF_MIN_DEFENSE = "MinDefense";
+    public static final String PREF_MIN_STAMINA = "MinStamina";
+    public static final String PREF_MIN_PERCENT = "MinPercent";
+    public static final String PREF_MIN_OVERRIDE = "MinOverride";
+    public static final int SPEED_CAP = 10; // Will get empty map objects over this speed. This is 10m/s or 36kph or 22mph
+
+
+    public long imageSize = 2;
+    public boolean showScanDetails = false;
+    public boolean ivsAlwaysVisible = true;
+    public long defaultMarkersMode = 0;
+    public boolean overrideEnabled = false;
+    public boolean clearMapOnScan = false;
+    public boolean gpsModeNormal = true;
+    public boolean use2Captcha = false;
+    public boolean useNewApi = false;
+    public boolean fallbackApi = true;
+    public String captchaKey = "";
+    public String newApiKey = "";
+
+    public final String PREF_CACHE_ID = "CacheID";
+    public String cacheID = "";
+    public boolean retrievedCacheID = false;
+
+    public synchronized boolean addSpawnInfo(CatchablePokemon pokemon) {
+        if (spawns.containsKey(pokemon.getSpawnPointId())) {
+            Spawn spawn = spawns.get(pokemon.getSpawnPointId());
+            int num = pokemon.getPokemonId().getNumber();
+            if (!spawn.history.contains(num)) spawn.history.add(num);
+            return false;
+        } else {
+            final Spawn spawn = new Spawn(pokemon.getSpawnPointId(), new CLLocationCoordinate2D(pokemon.getLatitude(), pokemon.getLongitude()), pokemon.getPokemonId().getNumber());
+            spawns.put(spawn.id, spawn);
+            spawn.nickname = "Spawn " + spawns.size();
+
+            if (showSpawns) {
+                Runnable runnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        showSpawnOnMap(spawn);
+                    }
+                };
+                features.runOnMainThread(runnable);
+            }
+
+            Runnable geocoderRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    CLGeocoder geocoder = new CLGeocoder();
+                    geocoder.reverseGeocodeLocation(new CLLocation(spawn.lat, spawn.lon), new VoidBlock2() {
+
+                        @Override
+                        public void invoke(Object a, Object b) {
+                            try {
+                                if (a == null) return;
+                                NSArray placemarks = (NSArray) a;
+                                if (placemarks.size() > 0) {
+                                    CLPlacemark placemark = (CLPlacemark) placemarks.get(0);
+                                    spawn.location = placemark.getLocality() + ", " + placemark.getAdministrativeArea() + ", " + placemark.getISOcountryCode();
+                                    features.print("PokeFinder", spawn.nickname + " is located at " + spawn.location);
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                    });
+                }
+            };
+
+            AccountManager.run(geocoderRunnable);
+            
+            return true;
+        }
+    }
     
+    public static int getSpeed(int radius) {
+    		final float HEX_DISTANCE = (float) (int) (Math.sqrt(3)*MapHelper.MAX_SCAN_RADIUS);
+		final float BIG_HEX_SIZE = 2*radius / (float) Math.sqrt(3);
+		final float ITERATIONS = MapHelper.MAX_SCAN_RADIUS < radius ? (float) Math.ceil(BIG_HEX_SIZE / HEX_DISTANCE) + 1 : 1;
+
+		int hexSectors = (int) (3*Math.pow(ITERATIONS - 1, 2) + 3*(ITERATIONS - 1) + 1);
+
+		final int MINI_SQUARE_SIZE = (int) Math.sqrt(Math.pow(MapHelper.MAX_SCAN_RADIUS * 2, 2) / 2);
+		final int BOXES_PER_ROW = (int) Math.ceil(2 * radius / (float) MINI_SQUARE_SIZE);
+		int sectors = BOXES_PER_ROW * BOXES_PER_ROW;
+
+		int squareSectors = sectors;
+		
+		int squareSize = MINI_SQUARE_SIZE;
+		int hexSize = (int) HEX_DISTANCE;
+		int distancePerScan = hexSectors <= squareSectors ? hexSize : squareSize;
+		String scanType = hexSectors <= squareSectors ? "Hex" : "Square";
+		System.out.println("Using " + scanType + " scan for " + radius + "m");
+		
+		int speed = (int) Math.ceil(distancePerScan / minScanTime);
+		maxScanSpeed = Math.min(SPEED_CAP, speed);
+		return speed;
+    }
 
     public int getScanSpeed() {
 		return scanSpeed;
@@ -127,13 +255,58 @@ public abstract class MapHelper {
         this.features = features;
     }
 
-
-    public String getTimeString(long time) {
-        String timeString = (time / 60) + ":" + String.format("%02d", time % 60);
-        return timeString;
+    public int getMinAttack() {
+        return minAttack;
     }
 
-    public synchronized void moveMe(double lat, double lon, boolean repositionCamera, boolean reZoom) {
+    public void setMinAttack(int minAttack) {
+        this.minAttack = minAttack;
+    }
+
+    public int getMinDefense() {
+        return minDefense;
+    }
+
+    public void setMinDefense(int minDefense) {
+        this.minDefense = minDefense;
+    }
+
+    public int getMinStamina() {
+        return minStamina;
+    }
+
+    public void setMinStamina(int minStamina) {
+        this.minStamina = minStamina;
+    }
+
+    public int getMinPercent() {
+        return minPercent;
+    }
+
+    public void setMinPercent(int minPercent) {
+        this.minPercent = minPercent;
+    }
+
+    public int getMinOverride() {
+        return minOverride;
+    }
+
+    public void setMinOverride(int minOverride) {
+        this.minOverride = minOverride;
+    }
+
+    public String getTimeString(long time) {
+        try {
+            String timeString = (time / 60) + ":" + String.format("%02d", time % 60);
+            return timeString;
+        } catch (Exception e) {
+            e.printStackTrace();
+            ErrorReporter.logExceptionThreaded(e);
+            return "?:??";
+        }
+    }
+
+    public synchronized void moveMe(double lat, double lon, double altitude, boolean repositionCamera, boolean reZoom) {
 
     }
 
@@ -143,5 +316,12 @@ public abstract class MapHelper {
 
     public abstract boolean updateScanSettings();
     public abstract void wideScan();
-    public abstract boolean scanForPokemon(double lat, double lon);
+    public abstract boolean scanForPokemon(AccountScanner scanner, double lat, double lon);
+    public abstract void saveSpawns();
+    public abstract void loadSpawns();
+    public abstract void deleteAllSpawns();
+    public abstract void wideSpawnScan();
+    public abstract void refreshPrefs();
+    public abstract void saveIVFilters();
+    public abstract ImageAnnotation showSpawnOnMap(Spawn spawn);
 }

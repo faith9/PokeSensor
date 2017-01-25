@@ -2,23 +2,34 @@ package com.logickllc.pokesensor;
 
 import org.robovm.apple.foundation.NSIndexPath;
 import org.robovm.apple.uikit.UIInterfaceOrientation;
+import org.robovm.apple.uikit.UILabel;
 import org.robovm.apple.uikit.UIStatusBarStyle;
-import org.robovm.apple.uikit.UISwitch;
 import org.robovm.apple.uikit.UITableView;
 import org.robovm.apple.uikit.UITableViewCell;
 import org.robovm.apple.uikit.UITableViewController;
-import org.robovm.apple.uikit.UITableViewRowAnimation;
 import org.robovm.objc.annotation.CustomClass;
-import org.robovm.objc.annotation.IBAction;
 import org.robovm.objc.annotation.IBOutlet;
 
 import com.badlogic.gdx.Gdx;
 
+import java.util.ArrayList;
+
+import static com.logickllc.pokesensor.IOSFeatures.PREFS_NAME;
+import static com.logickllc.pokesensor.IOSFeatures.REMOVE_ADS_IAP_PRODUCT_ID;
+
 @CustomClass("SettingsController")
-public class SettingsController extends UITableViewController {
-	
+public class SettingsController extends  UITableViewController {
+
 	@IBOutlet
-	UITableViewCell contactButton, logoutButton, twitterButton, facebookButton, moreAppsButton, aboutButton;
+	UITableViewCell contactButton, accountsButton, twitterButton, facebookButton, moreAppsButton, aboutButton, helpButton,
+			reviewButton, mySpawnsButton, spawnScanButton, prefsButton, removeAdsButton, restorePurchasesButton, refreshAccountsButton;
+
+	boolean canScan = false;
+
+	public static SettingsController instance = null;
+
+	// TODO Update this every time you add a button
+	public final long NUM_ITEMS = 13;
 
 	@Override
 	public UIStatusBarStyle getPreferredStatusBarStyle() {
@@ -33,36 +44,47 @@ public class SettingsController extends UITableViewController {
 	}
 
 	@Override
+	public void viewWillAppear(boolean animated) {
+		instance = this;
+
+		if (Utilities.canScan == null)
+			canScan = Utilities.scan();
+		else
+			canScan = Utilities.canScan;
+	}
+
+	@Override
 	public void didSelectRow(UITableView tableView, NSIndexPath indexPath) {
 		UITableViewCell selected = tableView.getCellForRow(indexPath);
+		tableView.deselectRow(indexPath, true);
 		if (selected == contactButton) {
-			tableView.deselectRow(indexPath, true);
 			Gdx.net.openURI("mailto:logickllc@gmail.com");
-		}
-		else if (selected == aboutButton) {
-			tableView.deselectRow(indexPath, true);
-		}
-		else if (selected == logoutButton) {
-			tableView.deselectRow(indexPath, true);
-			MapController.features.logout();
-		} 
-		else if (selected == twitterButton) {
-			tableView.deselectRow(indexPath, true);
+		} else if (selected == helpButton) {
+			Gdx.net.openURI("https://www.reddit.com/r/pokesensor/comments/4ymkuj/pokesensor_faq_and_troubleshooting/");
+		} else if (selected == twitterButton) {
 			Gdx.net.openURI("https://twitter.com/LogickLLC");
-		}
-		else if (selected == facebookButton) {
-			tableView.deselectRow(indexPath, true);
+		} else if (selected == facebookButton) {
 			Gdx.net.openURI("https://www.facebook.com/Logick-LLC-984234335029611/");
-			
 		} else if (selected == moreAppsButton) {
-			tableView.deselectRow(indexPath, true);
-			Gdx.net.openURI("https://itunes.apple.com/us/developer/patrick-ballard/id1026470545");			
+			Gdx.net.openURI("https://itunes.apple.com/us/developer/patrick-ballard/id1026470545");
+		} else if (selected == reviewButton) {
+			Gdx.net.openURI("https://appsto.re/us/Mef-db.i");
+		} else if (selected == spawnScanButton) {
+			MapController.instance.dontRefreshAccounts = true;
+			this.getNavigationController().popToRootViewController(true);
+			MapController.mapHelper.wideSpawnScan();
+		} else if (selected == removeAdsButton) {
+			MapController.instance.removeAds();
+		} else if (selected == restorePurchasesButton) {
+			MapController.instance.restorePurchases();
+		} else if (selected == refreshAccountsButton) {
+			MapController.features.refreshAccounts();
 		}
 	}
 
 	@Override
 	public void viewWillDisappear(boolean animated) {
-		//this.getNavigationController().setNavigationBarHidden(true);
+		// this.getNavigationController().setNavigationBarHidden(true);
 	}
 
 	@Override
@@ -73,21 +95,22 @@ public class SettingsController extends UITableViewController {
 	@Override
 	public boolean prefersStatusBarHidden() {
 		return false;
-	}	
-	
+	}
+
 	@Override
 	public void willRotate(UIInterfaceOrientation arg0, double arg1) {
 		super.willRotate(arg0, arg1);
-		IOSLauncher.instance.hide();
+		IOSLauncher.instance.hideBanner();
 	}
 
 	@Override
 	public void didRotate(UIInterfaceOrientation fromInterfaceOrientation) {
 		super.didRotate(fromInterfaceOrientation);
 		System.out.println("Did update to " + fromInterfaceOrientation);
-		if (fromInterfaceOrientation == UIInterfaceOrientation.Portrait || fromInterfaceOrientation == UIInterfaceOrientation.PortraitUpsideDown) 
+		if (fromInterfaceOrientation == UIInterfaceOrientation.Portrait
+				|| fromInterfaceOrientation == UIInterfaceOrientation.PortraitUpsideDown)
 			IOSLauncher.instance.changeOrientation(false);
-		else 
+		else
 			IOSLauncher.instance.changeOrientation(true);
 	}
 }

@@ -24,7 +24,7 @@ public class AboutController extends UIViewController {
 	@Override
 	public void willRotate(UIInterfaceOrientation arg0, double arg1) {
 		super.willRotate(arg0, arg1);
-		IOSLauncher.instance.hide();
+		IOSLauncher.instance.hideBanner();
 	}
 
 	@Override

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+      xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_add_account"
+        android:icon="@drawable/ic_action_add_account"
+        android:title="@string/action_add_account"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_import_accounts"
+        android:icon="@drawable/ic_action_import"
+        android:title="@string/action_import_accounts"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_export_accounts"
+        android:icon="@drawable/ic_action_export"
+        android:title="@string/action_export_accounts"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_delete_accounts"
+        android:icon="@drawable/ic_action_delete_spawns"
+        android:title="@string/action_delete_accounts"
+        app:showAsAction="ifRoom" />
+</menu>

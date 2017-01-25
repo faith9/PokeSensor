@@ -1,10 +1,11 @@
 buildscript {
     repositories {
+        jcenter()
         mavenCentral()
         maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.5.0'
+        classpath 'com.android.tools.build:gradle:2.2.3'
         classpath 'org.robovm:robovm-gradle-plugin:1.14.0'
     }
 }
@@ -21,6 +22,8 @@ allprojects {
         box2DLightsVersion = '1.4'
         ashleyVersion = '1.7.0'
         aiVersion = '1.7.0'
+        gdxPayVersion = '0.9.2';
+        //gdxPayVersion = '0.10.3'
     }
 
     repositories {
@@ -42,7 +45,6 @@ project(":android") {
         natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
         natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
         compile "de.tomgrill.gdxdialogs:gdx-dialogs-android:1.0.0"
-        compile "de.tomgrill.gdxfacebook:gdx-facebook-android:1.1.1"
     }
 }
 
@@ -58,7 +60,16 @@ project(":ios") {
         compile "com.badlogicgames.gdx:gdx-backend-robovm:$gdxVersion"
         compile "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-ios"
         compile "de.tomgrill.gdxdialogs:gdx-dialogs-ios:1.0.0"
-        compile "de.tomgrill.gdxfacebook:gdx-facebook-ios:1.1.1"
+		compile "org.robovm:robopods-google-mobile-ads-ios:$roboVMVersion"
+        compile 'com.google.code.gson:gson:2.7'
+
+        compile "org.robovm:robopods-facebook-ios-core:$roboVMVersion"
+        compile "org.robovm:robopods-facebook-ios-login:$roboVMVersion"
+        compile "org.robovm:robopods-facebook-ios-share:$roboVMVersion"
+        compile "com.badlogicgames.gdxpay:gdx-pay-iosrobovm-apple:$gdxPayVersion"
+        //compile "org.robovm:robopods-flurry-ios:$roboVMVersion"
+
+        compile fileTree(dir: 'libs', include: '*.jar')
     }
 }
 
@@ -69,8 +80,9 @@ project(":core") {
     dependencies {
         compile "com.badlogicgames.gdx:gdx:$gdxVersion"
         compile "de.tomgrill.gdxdialogs:gdx-dialogs-core:1.0.0"
-        compile "de.tomgrill.gdxfacebook:gdx-facebook-core:1.1.1"
-    		compile "org.apache.commons:commons-math3:3.2"
+
+        compile "com.badlogicgames.gdxpay:gdx-pay:$gdxPayVersion"
+        compile "com.badlogicgames.gdxpay:gdx-pay-client:$gdxPayVersion"
     }
 }
 

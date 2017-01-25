@@ -16,6 +16,8 @@ public class R {
 	    public static final String action_twitter = "Twitter";
 	    public static final String action_facebook = "Facebook";
 	    public static final String action_moreapps = "More Apps";
+	    public static final String action_dual_accounts = "Add Second Account";
+	    public static final String action_dual_logout = "Logout Second Account";
 
 	    public static final String loginTitle = "Login with a Pokemon Trainer Club account";
 	    public static final String loginMessage = "This is an UNOFFICIAL login to the Pokemon Go servers, so you can get the Pokemon data straight from the source\n\nI recommend creating a dummy account to use with this app instead of your real account, in case scanning gets the account banned.\n\nLOGIN AT YOUR OWN RISK";
@@ -23,8 +25,10 @@ public class R {
 	    public static final String password = "Enter PTC Password";
 	    public static final String loginButton = "Login";
 	    public static final String cancelButton = "Cancel";
-	    public static final String loginSuccessfulMessage = "Login successful";
-	    public static final String loginFailedMessage = "Login failed. Could be invalid credentials or servers could be down. Please try again in a few minutes.";
+	    public static final String loginSuccessfulMessage = " login successful";
+	    public static final String loginFailedMessage = " login failed. Please go to Settings > Help to get help with common login problems.";
+	    public static final String loginBanned = " login failed. Your account may be banned. You may want to login to Pokemon Go with this account to check.";
+	    public static final String accountInactive = " account has not been activated. Please activate via the email they sent when you signed up.";
 	    public static final String tryingLoginTitle = "Logging in...";
 	    public static final String tryingLoginMessage = "Trying to login to Pokemon Go servers. This could take a while if the servers are overloaded.";
 	    public static final String rememberLogin = "Remember username and password";

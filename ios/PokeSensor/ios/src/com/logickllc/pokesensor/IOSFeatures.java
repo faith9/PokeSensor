@@ -1,20 +1,17 @@
 package com.logickllc.pokesensor;
 
-import java.util.concurrent.TimeUnit;
+import com.logickllc.pokesensor.api.Account;
+import com.logickllc.pokesensor.api.AccountManager;
+import com.logickllc.pokesensor.api.Features;
 
 import org.robovm.apple.dispatch.DispatchQueue;
-import org.robovm.apple.foundation.Foundation;
-import org.robovm.apple.uikit.UIModalPresentationStyle;
+import org.robovm.apple.uikit.UIActionSheet;
+import org.robovm.apple.uikit.UIActionSheetDelegateAdapter;
+import org.robovm.apple.uikit.UIViewController;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Preferences;
-import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
-import com.logickllc.pokesensor.api.Features;
-import com.pokegoapi.api.PokemonGo;
-import com.pokegoapi.auth.PtcCredentialProvider;
+import java.util.ArrayList;
 
 import de.tomgrill.gdxdialogs.core.dialogs.GDXProgressDialog;
-import okhttp3.OkHttpClient;
 
 public class IOSFeatures extends Features {
 	public static final String PREFS_NAME = "PokeSensor";
@@ -22,230 +19,42 @@ public class IOSFeatures extends Features {
 	public static final String PREF_USERNAME = "ProfileName";
 	public static final String PREF_PASSWORD = "Nickname";
 	public static final String PREF_FIRST_LOAD = "FirstLoad";
-	
+
+	public static final String PREF_TOKEN2 = "Token2";
+	public static final String PREF_USERNAME2 = "ProfileName2";
+	public static final String PREF_PASSWORD2 = "Nickname2";
+
+	public static final int SUPER_LONG_MESSAGE_TIME = 5000;
 	public static final int LONG_MESSAGE_TIME = 3000;
 	public static final int SHORT_MESSAGE_TIME = 1500;
 
 	private GDXProgressDialog progressDialog;
 
-	public synchronized void lockLogin() {
-		if (!loginLocked()) loggingIn = true;
-	}
+	public static final String REMOVE_ADS_IAP_PRODUCT_ID = "com.logickllc.pokesensor.removeads";
 
-	public synchronized void unlockLogin() {
-		loggingIn = false;
-	}
-
-	public synchronized boolean loginLocked() {
-		return loggingIn;
-	}
 	public void login() {
-		if (!loginLocked()) lockLogin();
-		else {
-			print("PokeFinder", "Trying to call login() but it's already locked");
-			return;
-		}
 		Thread loginThread = new Thread() {
 			public void run() {
-				print(TAG, "Attempting to login...");
 				try {
-					final Preferences prefs = Gdx.app.getPreferences(PREFS_NAME);
-					token = prefs.getString(PREF_TOKEN);
-					/*if (token != "") {
-                        final ProgressDialog tryingDialog = showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
-                        boolean trying = true;
-                        int failCount = 0;
-                        final int MAX_TRIES = 3;
-                        while (trying) {
-                            try {
-                                print(TAG, "Attempting to login with token: " + token);
+					boolean canScan;
+					print(TAG, "Can scan: " + Utilities.canScan);
+					if (Utilities.canScan == null) canScan = Utilities.scan();
+					else canScan = Utilities.canScan;
 
-                                OkHttpClient httpClient = new OkHttpClient();
-                                go = new PokemonGo(auth, httpClient);
-                                tryTalkingToServer(); // This will error if we can't reach the server
-                                shortMessage(R.string.loginSuccessfulMessage);
-                                unlockLogin();
-                                progressDialog.dismiss();
-                                return;
-                            } catch (Exception e) {
-                                if (++failCount < MAX_TRIES) {
-                                    try {
-                                        Thread.sleep(2000);
-                                    } catch (InterruptedException e1) {
-                                        e1.printStackTrace();
-                                    }
-                                } else {
-                                    e.printStackTrace();
-                                    token = "";
-                                    print(TAG, "Erasing token because it seems to be expired.");
-                                    SharedPreferences.Editor editor = preferences.edit();
-                                    editor.putString(PREF_TOKEN, token);
-                                    editor.commit();
-                                    //longMessage(R.string.loginFailedMessage);
-                                    unlockLogin();
-                                    progressDialog.dismiss();
-                                    login();
-                                    return;
-                                }
-                            }
-                        }
-                    } else {*/
-					Runnable runnable = new Runnable() {
-						@Override
-						public void run() {
-							String pastUsername = prefs.getString(PREF_USERNAME, "");
-							String pastPassword = prefs.getString(PREF_PASSWORD, "");
-
-							if (!pastUsername.equals("") && !pastPassword.equals("")) {
-								final String username = decode(pastUsername);
-								final String password = decode(pastPassword);
-
-								if (username.equals("") || password.equals("")) {
-									// Erase username and pass and prompt for login again
-									prefs.putString(PREF_USERNAME, "");
-									prefs.putString(PREF_PASSWORD, "");
-									prefs.flush();
-									unlockLogin();
-									login();
-									return;
-								}
-
-								Thread thread = new Thread() {
-									@Override
-									public void run() {
-										showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
-										boolean trying = true;
-										int failCount = 0;
-										final int MAX_TRIES = 3;
-										while (trying) {
-											OkHttpClient httpClient = new OkHttpClient.Builder()
-									          .connectTimeout(20, TimeUnit.SECONDS)
-									          .writeTimeout(10, TimeUnit.SECONDS)
-									          .readTimeout(30, TimeUnit.SECONDS)
-									          .build();
-											//RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth = null;
-											try {
-												if (IOSLauncher.IS_AD_TESTING) print(TAG, "Attempting to login with Username: " + username + " and password: " + password);
-
-												PtcCredentialProvider provider = new PtcCredentialProvider(httpClient, username, password);
-												go = new PokemonGo(provider, httpClient);
-												shortMessage(R.string.loginSuccessfulMessage);
-												token = provider.getTokenId();
-												//print(TAG, "Token: " + token);
-												prefs.putString(PREF_TOKEN, token);
-												prefs.flush();
-												unlockLogin();
-												progressDialog.dismiss();
-												return;
-											} catch (Exception e) {
-												if (++failCount < MAX_TRIES) {
-													try {
-														Thread.sleep(3000);
-													} catch (InterruptedException e1) {
-														e1.printStackTrace();
-													}
-												} else {
-													e.printStackTrace();
-													longMessage(R.string.loginFailedMessage);
-													unlockLogin();
-													progressDialog.dismiss();
-													return;
-												}
-											}
-										}
-									}
-								};
-								thread.start();
-							} else {
-								Runnable r = new Runnable() {
-									public void run() {
-										LoginController loginController = (LoginController) IOSLauncher.navigationController.getStoryboard().instantiateViewController("LoginController");
-										if (Foundation.getMajorSystemVersion() >= 8) IOSLauncher.navigationController.setModalPresentationStyle(UIModalPresentationStyle.OverCurrentContext);
-										else IOSLauncher.navigationController.setModalPresentationStyle(UIModalPresentationStyle.CurrentContext);
-										IOSLauncher.navigationController.setProvidesPresentationContextTransitionStyle(true);
-										IOSLauncher.navigationController.setDefinesPresentationContext(true);
-
-										IOSLauncher.navigationController.presentViewController(loginController, true, null);
-										
-									}
-								};
-								runOnMainThread(r);
-							}
-						}
-					};
-					runOnMainThread(runnable);
-
-
-				} catch (Exception e) {
-					print(TAG, "Login failed...");
-					e.printStackTrace();
-					unlockLogin();
+					try {
+						MapController.instance.tryFetchingMessages();
+					} catch (Exception e) {
+						e.printStackTrace();
+						ErrorReporter.logExceptionThreaded(e);
+					}
+					AccountManager.login();
+				} catch (Throwable t) {
+					t.printStackTrace();
+					ErrorReporter.logException(t);
 				}
 			}
 		};
 		loginThread.start();
-	}
-	
-	public void tryLogin(final String username, final String password) {
-		Thread thread = new Thread() {
-            @Override
-            public void run() {
-            	   MapController.features.saveUsernamePassword(username, password);
-            	   unlockLogin();
-            	   login();
-            	   if (true) return;
-                MapController.features.showProgressDialog(R.string.tryingLoginTitle, R.string.tryingLoginMessage);
-                boolean trying = true;
-                int failCount = 0;
-                final int MAX_TRIES = 10;
-                while (trying) {
-                    OkHttpClient httpClient = new OkHttpClient();
-                    try {
-                        //print(TAG, "Attempting to login with Username: " + username.getText().toString() + " and password: " + password.getText().toString());
-
-                        PtcCredentialProvider provider = new PtcCredentialProvider(httpClient, username, password);
-                        go = new PokemonGo(provider, httpClient);
-                        shortMessage(R.string.loginSuccessfulMessage);
-                        token = provider.getTokenId();
-                        //print(TAG, "Token: " + token);
-                        saveToken(token);
-                        unlockLogin();
-                        progressDialog.dismiss();
-                        return;
-                    } catch (Exception e) {
-                        if (++failCount < MAX_TRIES) {
-                            try {
-                                Thread.sleep(3000);
-                            } catch (InterruptedException e1) {
-                                e1.printStackTrace();
-                            }
-                        } else {
-                            e.printStackTrace();
-                            longMessage(R.string.loginFailedMessage);
-                            unlockLogin();
-                            progressDialog.dismiss();
-                            return;
-                        }
-                    }
-                }
-            }
-        };
-        thread.start();
-	}
-
-	public void logout() {
-
-		Runnable yes = new Runnable() {
-			
-			public void run() {
-				// Erase login creds so we can try again
-				saveUsernamePassword("", "");
-				saveToken("");
-				login();
-			}
-		};
-
-		DialogHelper.yesNoBox(R.string.logoutTitle, R.string.logoutMessage, yes, null).build().show();
 	}
 
 	@Override
@@ -274,7 +83,7 @@ public class IOSFeatures extends Features {
 	}
 
 	public void shortMessage(int resid) {
-		
+
 	}
 
 	public void shortMessage(final String message) {
@@ -282,30 +91,177 @@ public class IOSFeatures extends Features {
 	}
 
 	public void longMessage(int resid) {
-		
+
 	}
 
 	public void longMessage(final String message) {
-		MapController.instance.showMessageFor(message, LONG_MESSAGE_TIME);
-		/*Runnable r = new Runnable() {
-			@Override
-			public void run() {
-				DialogHelper.messageBox("Message", message).build().show();
-			}
-		};
-		runOnMainThread(r);*/
+		boolean showDialog = false;
+		try {
+			if (!(IOSLauncher.navigationController.getVisibleViewController() instanceof MapController)) showDialog = true;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if (!showDialog) {
+			MapController.instance.showMessageFor(message, LONG_MESSAGE_TIME);
+		} else {
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					DialogHelper.messageBox("Message", message).build().show();
+				}
+			};
+			runOnMainThread(r);
+		}
 	}
 
-	public void saveUsernamePassword(String username, String password) {
-		Preferences prefs = Gdx.app.getPreferences(PREFS_NAME);
-		prefs.putString(PREF_USERNAME, encode(username));
-		prefs.putString(PREF_PASSWORD, encode(password));
-		prefs.flush();
+	public void longMessage(final String message, boolean showDialog) {
+		longMessage(message);
 	}
-	
-	public void saveToken(String token) {
-		Preferences prefs = Gdx.app.getPreferences(PREFS_NAME);
-		prefs.putString(PREF_TOKEN, token);
-		prefs.flush();
+
+	public void superLongMessage(final String message) {
+		boolean showDialog = false;
+		try {
+			if (!(IOSLauncher.navigationController.getVisibleViewController() instanceof MapController)) showDialog = true;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		if (!showDialog) {
+			MapController.instance.showMessageFor(message, SUPER_LONG_MESSAGE_TIME);
+		} else {
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					DialogHelper.messageBox("Message", message).build().show();
+				}
+			};
+			runOnMainThread(r);
+		}
+	}
+
+	public void saveUsernamePassword(String username, String password, boolean isSecond) {
+		NativePreferences.lock("legacy save username password");
+		if (!isSecond) {
+			NativePreferences.putString(PREF_USERNAME, encode(username));
+			NativePreferences.putString(PREF_PASSWORD, encode(password));
+		} else {
+			NativePreferences.putString(PREF_USERNAME2, encode(username));
+			NativePreferences.putString(PREF_PASSWORD2, encode(password));
+		}
+		NativePreferences.unlock();
+	}
+
+	public void saveToken(String token, boolean isSecond) {
+		NativePreferences.lock("legacy save token");
+		if (!isSecond) NativePreferences.putString(PREF_TOKEN, token);
+		else NativePreferences.putString(PREF_TOKEN2, token);
+		NativePreferences.unlock();
+	}
+
+	public void loadCaptcha(final Account account) {
+		final String url = account.getCaptchaUrl();
+
+		captchaScreenVisible = true;
+		Runnable r = new Runnable() {
+			public void run() {
+				CaptchaController cont = (CaptchaController) MapController.instance.getStoryboard().instantiateViewController("CaptchaController");
+				cont.account = account;
+				account.captchaScreenVisible = true;
+				MapController.instance.getNavigationController().showViewController(cont, null);
+			}
+		};
+
+		runOnMainThread(r);
+	}
+
+	@Override
+	public void loadFilter() {
+		String defaultString = "";
+		for (int n = 0; n < NUM_POKEMON; n++) {
+			defaultString += "1";
+		}
+
+		NativePreferences.lock("load filter");
+		String filterString = NativePreferences.getString(PREF_FILTER_STRING, defaultString);
+		NativePreferences.unlock();
+
+		loadFilterFromString(filterString);
+	}
+
+	@Override
+	public void saveFilter() {
+		String filterString = "";
+		for (int n = 0; n < NUM_POKEMON; n++) {
+			filterString += filter.get(n+1) ? "1" : "0";
+		}
+
+		NativePreferences.lock("save filter");
+		NativePreferences.putString(PREF_FILTER_STRING, filterString);
+		NativePreferences.unlock();
+	}
+
+	@Override
+	public void loadFilterOverrides() {
+		String defaultString = "";
+		for (int n = 0; n < NUM_POKEMON; n++) {
+			defaultString += "0";
+		}
+
+		NativePreferences.lock("load filter overrides");
+		String filterString = NativePreferences.getString(PREF_FILTER_OVERRIDES_STRING, defaultString);
+		NativePreferences.unlock();
+
+		loadFilterOverridesFromString(filterString);
+	}
+
+	@Override
+	public void saveFilterOverrides() {
+		String filterString = "";
+		for (int n = 0; n < NUM_POKEMON; n++) {
+			filterString += filterOverrides.get(n+1) ? "1" : "0";
+		}
+
+		NativePreferences.lock("save filter overrides");
+		NativePreferences.putString(PREF_FILTER_OVERRIDES_STRING, filterString);
+		NativePreferences.unlock();
+	}
+
+	public void refreshAccounts() {
+		if (getMapHelper().scanning) {
+			longMessage("Can't refresh accounts while scanning.");
+		} else if (AccountManager.getLoggingInAccounts().size() > 0) {
+			longMessage("Can't refresh while an account is still logging in.");
+		} else {
+			Thread thread = new Thread() {
+				public void run() {
+					AccountManager.refreshAccounts();
+				}
+			};
+			thread.start();
+		}
+	}
+
+	@SuppressWarnings("deprecation")
+	public static void showNativeOptionsList(final ArrayList<String> options, final ArrayList<Lambda> functions, UIViewController viewController) {
+		UIActionSheet actionSheet = new UIActionSheet();
+		for (String option : options) {
+			actionSheet.addButton(option);
+		}
+		actionSheet.addButton("Cancel");
+
+		actionSheet.setCancelButtonIndex(options.size());
+
+		actionSheet.setDelegate(new UIActionSheetDelegateAdapter() {
+
+			@Override
+			public void clicked(UIActionSheet actionSheet, long buttonIndex) {
+				if (buttonIndex != options.size()) functions.get((int) buttonIndex).execute();
+				super.clicked(actionSheet, buttonIndex);
+			}
+
+		});
+
+		actionSheet.showIn(((UIViewController) viewController).getView());
 	}
 }

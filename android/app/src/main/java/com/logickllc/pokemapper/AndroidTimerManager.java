@@ -36,7 +36,7 @@ public class AndroidTimerManager {
 	}
 	
 	public void cancelTimer(AndroidTimer timer) {
-		// Remove this instance from the list of timers and kill this timer
+		// Remove this accountsActivityInstance from the list of timers and kill this timer
 		timer.cancel();
 		timerList.remove(timer);
 		timer = null;

@@ -2,17 +2,19 @@ package com.logickllc.pokemapper;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ProgressDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.location.Location;
 import android.location.LocationManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
@@ -22,13 +24,19 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.aerserv.sdk.AerServBanner;
+import com.aerserv.sdk.AerServConfig;
+import com.aerserv.sdk.AerServEvent;
+import com.aerserv.sdk.AerServEventListener;
 import com.amazon.device.ads.Ad;
 import com.amazon.device.ads.AdError;
 import com.amazon.device.ads.AdLayout;
@@ -37,8 +45,8 @@ import com.amazon.device.ads.AdProperties;
 import com.amazon.device.ads.AdRegistration;
 import com.amazon.device.ads.AdTargetingOptions;
 import com.amazon.device.ads.InterstitialAd;
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
@@ -53,22 +61,38 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
+import com.logickllc.pokesensor.api.AccountManager;
 import com.logickllc.pokesensor.api.MapHelper;
+import com.logickllc.pokesensor.api.Messenger;
+import com.pokegoapi.main.PokemonMeta;
+import com.pokegoapi.util.hash.pokehash.PokeHashProvider;
+import com.squareup.leakcanary.LeakCanary;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import POGOProtos.Enums.PokemonIdOuterClass;
+import io.fabric.sdk.android.Fabric;
+
+import static com.logickllc.pokemapper.AndroidFeatures.PREF_USERNAME;
+import static com.logickllc.pokemapper.AndroidFeatures.PREF_USERNAME2;
+import static com.logickllc.pokesensor.api.AccountManager.PREF_NUM_ACCOUNTS;
+
 public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyCallback, LocationListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+    public static AccountsActivity accountsActivityInstance = null;
     private final String PREF_FIRST_LOAD = "FirstLoad";
     private final int LOCATION_PERMISSION_REQUEST_CODE = 1776;
     private final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1337;
@@ -83,7 +107,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public static AndroidMapHelper mapHelper;
     public static AndroidFeatures features;
     private final String VERSION_URL = "https://raw.githubusercontent.com/MrPat/PokeSensor/master/version.txt";
-    private final String UPDATE_URL = "https://pokesensor.org";
+    private final String UPDATE_URL = "http://pokesensor.org";
     private boolean userWantsUpdate = false;
 
     // This manages all the timers I use and only lets them count down while the activity is in the foreground
@@ -93,13 +117,13 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     private boolean isActivityVisible = true;
 
     //These are all related to ads
-    public static final boolean IS_AD_TESTING = false; // TODO Flag that determines whether to show test ads or live ads
+    public static final boolean IS_AD_TESTING = true; // TODO Flag that determines whether to show test ads or live ads
     public String AMAZON_APP_ID; //Need this for the ad impressions to be credited to me
     public final int AMAZON_BANNER_TIMEOUT = 10000; //Amount of time the banner will wait before the request expires and swaps to admob
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
     //public Timer bannerUpdateTimer = new Timer(); //Reloads the primary banner periodically. Secondary banner refreshes itself
-    public final long BANNER_REFRESH_RATE = 30000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
+    public final long BANNER_REFRESH_RATE = 15000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
     public Timer interstitialTimer = new Timer(); //Sets flag that allows interstitial to be shown only after a certain time has passed
     public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
     public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
@@ -112,14 +136,54 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean primaryInterstitialLoaded = false, secondaryInterstitialLoaded = false; //Flag for whether interstitial has loaded yet
     public boolean isMiddleBannerLoaded = false; // Artifact from an early implementation attempt. Should just leave it alone to make sure not to break current implementation
     public Hashtable<String, Integer> adNetworkPositions = new Hashtable<String, Integer>();
-    private static final Integer ADMOB_DEFAULT_POSITION = 2;
+    private static final Integer AERSERV_DEFAULT_POSITION = 2;
     private static final Integer AMAZON_DEFAULT_POSITION = 1;
     public long lastBannerLoad = 0;
     private int lastOrientation = 0;
+    public boolean isApi17 = false;
+    public final String AERSERV_PHONE_BANNER_AD_ID = ""; // ID for the 320x50 banner ad
+    public final String AERSERV_TABLET_BANNER_AD_ID = ""; // ID for the 728x90 banner ad
+    public String chosenAerservPLC = AERSERV_PHONE_BANNER_AD_ID; // Determines which banner to show, based on the device dimensions
+    public final String AERSERV_TEST_BANNER_ID = ""; // Test PLC for 300x50 banner ad
+    public final float AERSERV_TABLET_BANNER_WIDTH = 728f; // How wide the device has to be to display the tablet-sized banner
+    public final float AERSERV_PHONE_BANNER_WIDTH = 320f; // Same but for phone-sized banner. Not currently needed in code.
+
+    public final String PREF_APP_LOADS = "AppLoads";
+    public final String PREF_ASK_FOR_SUPPORT = "AskForSupport";
+    public final String PREF_FIRST_COPYRIGHT_LOAD = "FirstCopyrightLoad";
+    public final String PREF_FIRST_DECODE_LOAD = "FirstDecodeLoad";
+    public boolean canAskForSupport = true;
+    public int appLoads = 0;
+    public final int TARGET_APP_LOADS = 10;
+    public boolean justCreated = true;
+
+    public static PokeFinderActivity instance;
+
+    public boolean dontRefreshAccounts = false;
+    public final String PREF_FIRST_MULTIACCOUNT_LOAD = "FirstMultiAccountLoad";
+    public boolean canDecode = false;
+    public boolean didFetchMessages = false;
+    public TextView rpmView;
+    public LinearLayout rpmCountLayout;
+    public TextView rpmCountView;
+    private AdLayout primaryBanner = null;
+    private AerServBanner middleBanner = null;
+    private long lastAccountRetryTime = System.currentTimeMillis();
+    private final long ACCOUNT_RETRY_TIME = 1800000;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Fabric.with(this, new Crashlytics());
+
+        LeakCanary.install(this.getApplication());
+
+        NativePreferences.init(PreferenceManager.getDefaultSharedPreferences(this));
+
+        instance = this;
+        if (Build.VERSION.SDK_INT >= 17) isApi17 = true;
+        else isApi17 = false;
 
         mapHelper = new AndroidMapHelper(this);
         features = new AndroidFeatures(this);
@@ -127,9 +191,18 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         mapHelper.setFeatures(features);
         features.setMapHelper(mapHelper);
 
+        NativePreferences.lock("gpsModeNormal");
+        mapHelper.gpsModeNormal = NativePreferences.getBoolean(AndroidMapHelper.PREF_GPS_MODE_NORMAL, true);
+        NativePreferences.unlock();
+
         lastOrientation = this.getResources().getConfiguration().orientation;
         Log.d(TAG, "PokeFinderActivity.onCreate()");
         setContentView(R.layout.activity_poke_finder);
+
+        rpmView = (TextView) findViewById(R.id.rpm);
+        rpmCountLayout = (LinearLayout) findViewById(R.id.rpmCountLayout);
+        rpmCountView = (TextView) findViewById(R.id.rpmCount);
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -152,51 +225,119 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         initAds();
         showAds();
 
-        mapHelper.setScanPointIcon(BitmapDescriptorFactory.fromResource(R.drawable.scan_point_icon));
-
         delayCheckForAppUpdate();
+
+        NativePreferences.lock();
+        boolean multi = NativePreferences.getBoolean(PREF_FIRST_MULTIACCOUNT_LOAD, true);
+        boolean copyright = NativePreferences.getBoolean(PREF_FIRST_COPYRIGHT_LOAD, true);
+        NativePreferences.unlock();
+
+        if (multi) {
+            firstMultiAccountLoad();
+        }
+
+        if (copyright) {
+            firstCopyrightLoad();
+        }
+
+        mapHelper.loadSpawns();
+        features.loadFilter();
+        features.loadFilterOverrides();
+        features.loadCustomImageUrls();
+
+        NativePreferences.lock();
+        canAskForSupport = NativePreferences.getBoolean(PREF_ASK_FOR_SUPPORT, true);
+        appLoads = NativePreferences.getInt(PREF_APP_LOADS, 0);
+        if (appLoads < TARGET_APP_LOADS) {
+            appLoads++;
+            NativePreferences.putInt(PREF_APP_LOADS, appLoads);
+        }
+
+        NativePreferences.unlock();
+
+        justCreated = true;
     }
+
+
 
     @Override
     protected void onStart() {
         super.onStart();
         Log.d(TAG, "PokeFinderActivity.onStart()");
         client.connect();
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                features.loggedIn();
+        if (dontRefreshAccounts) {
+            dontRefreshAccounts = false;
+            return;
+        }
+
+        if (!mapHelper.scanning) {
+            if (AccountManager.accounts == null) {
+                features.login();
+            } else {
+                if (System.currentTimeMillis() - lastAccountRetryTime >= ACCOUNT_RETRY_TIME) {
+                    features.print(TAG, "It's been " + ((System.currentTimeMillis() - lastAccountRetryTime) / 1000) + "s since last checking account connection. Trying to talk to server now...");
+                    lastAccountRetryTime = System.currentTimeMillis();
+                    AccountManager.tryTalkingToServer();
+                }
             }
-        };
-        runnable.run();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        accountsActivityInstance = null;
+        AccountManager.loginErrorAccounts();
 
+        mapHelper.refreshPrefs();
 
         resumeAds();
         //timerManager.resumeTimers();
+        if (mMap != null) {
+            try {
+                if (mapHelper.gpsModeNormal) mMap.setMyLocationEnabled(true);
+                else mMap.setMyLocationEnabled(false);
+            } catch (SecurityException e) {
+                e.printStackTrace();
+            }
+        }
 
+        refreshGpsPermissions();
 
         Log.d(TAG, "PokeFinderActivity.onResume()");
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        NativePreferences.lock();
         mapHelper.setScanDistance(
-                prefs.getInt(AndroidMapHelper.PREF_SCAN_DISTANCE, MapHelper.DEFAULT_SCAN_DISTANCE));
+                NativePreferences.getInt(AndroidMapHelper.PREF_SCAN_DISTANCE, MapHelper.DEFAULT_SCAN_DISTANCE));
         mapHelper
-                .setScanSpeed(prefs.getInt(AndroidMapHelper.PREF_SCAN_SPEED, MapHelper.DEFAULT_SCAN_SPEED));
+                .setScanSpeed(NativePreferences.getInt(AndroidMapHelper.PREF_SCAN_SPEED, MapHelper.DEFAULT_SCAN_SPEED));
+        NativePreferences.unlock();
+
         if (mapHelper.getScanDistance() > MapHelper.MAX_SCAN_DISTANCE)
             mapHelper.setScanDistance(MapHelper.MAX_SCAN_DISTANCE);
         if (MapHelper.maxScanSpeed != 0 && mapHelper.getScanSpeed() > MapHelper.maxScanSpeed)
             mapHelper.setScanSpeed(MapHelper.maxScanSpeed);
-        
+
         LocationManager manager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         if (!manager.isProviderEnabled(LocationManager.GPS_PROVIDER) && !manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
             features.longMessage(R.string.noLocationDetected);
         }
 
         mapHelper.startCountdownTimer();
+
+        if (mMap != null) mapHelper.refreshTempScanCircle();
+
+        if (!justCreated && appLoads >= TARGET_APP_LOADS && canAskForSupport) askForSupport();
+        if (justCreated) justCreated = false;
+
+        if (!didFetchMessages) {
+            didFetchMessages = true;
+            Thread thread = new Thread() {
+                public void run() {
+                    Messenger.fetchMessages();
+                }
+            };
+            thread.start();
+        }
     }
 
     @Override
@@ -204,11 +345,13 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         super.onStop();
         Log.d(TAG, "PokeFinderActivity.onStop()");
         if (client != null && client.isConnected()) client.disconnect();
+        mapHelper.saveSpawns();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        features.dismissProgressDialog();
         Log.d(TAG, "PokeFinderActivity.onPause()");
         // Make sure the timers are paused (the tasks are successfully cancelled)
         timersPaused = true;
@@ -216,6 +359,38 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         timersPaused = timerManager.pauseTimers();
 
         mapHelper.stopCountdownTimer();
+    }
+
+    public void askForSupport() {
+        final Activity act = this;
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                AlertDialog.Builder builder = new AlertDialog.Builder(act);
+                builder.setTitle("Thank you!")
+                        .setMessage("Thanks for using PokeSensor! Please show your support for Logick LLC by checking out my other free apps. All downloads help me out, even if you don't keep the app. Thanks!")
+                        .setPositiveButton("Show Me More!", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                moreApps();
+                            }
+                        })
+                        .setNegativeButton("No Thanks", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                // Do nothing
+                            }
+                        }).setCancelable(false);
+
+                builder.create().show();
+            }
+        };
+
+        runOnUiThread(runnable);
+        NativePreferences.lock();
+        NativePreferences.putBoolean(PREF_ASK_FOR_SUPPORT, false);
+        NativePreferences.unlock();
+        canAskForSupport = false;
     }
 
     public void delayCheckForAppUpdate() {
@@ -267,7 +442,11 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                                         // Nothing
                                     }
                                 });
-                                builder.create().show();
+                                try {
+                                    builder.create().show();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
                             }
                         };
                         runOnUiThread(runnable);
@@ -423,10 +602,38 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void initAds() {
+        calculateAerservBannerSize();
+
+        if (IS_AD_TESTING) AdRegistration.enableLogging(true);
         adNetworkPositions.clear();
         //adNetworkPositions.put("Admob", ADMOB_DEFAULT_POSITION);
         adNetworkPositions.put("Amazon", AMAZON_DEFAULT_POSITION);
+        adNetworkPositions.put("AerServ", AERSERV_DEFAULT_POSITION);
         AdRegistration.setAppKey(AMAZON_APP_ID); //register this app so I get credit for my impressions
+    }
+
+    public void calculateAerservBannerSize() {
+        if (!isApi17) return;
+        // Get the screen width and determine which AerServ banner size to use
+        DisplayMetrics metrics = this.getResources().getDisplayMetrics();
+        float screenWidth = metrics.widthPixels / metrics.density;
+        float screenHeight = metrics.heightPixels / metrics.density;
+        float maxAdContainerHeightDip = Math.round(90 * metrics.density) + 2;
+        AerServBanner banner = (AerServBanner) findViewById(R.id.aerservBanner);
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) banner.getLayoutParams();
+        // Make sure the measurement is in DIP
+        Log.d(TAG, "Device size in DIP is: " + Float.toString(screenWidth) + "x" + Float.toString(screenHeight));
+        if (screenWidth >= AERSERV_TABLET_BANNER_WIDTH) {
+            chosenAerservPLC = AERSERV_TABLET_BANNER_AD_ID;
+            params.height = (int) (90 * metrics.density);
+            banner.setLayoutParams(params);
+            Log.d(TAG, "Using tablet banner size");
+        } else {
+            chosenAerservPLC = AERSERV_PHONE_BANNER_AD_ID;
+            params.height = (int) (50 * metrics.density);
+            banner.setLayoutParams(params);
+            Log.d(TAG, "Using phone banner size");
+        }
     }
 
     public void resumeAds() {
@@ -460,6 +667,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             }
         };
         AndroidTimer updateTimer = new AndroidTimer(task, BANNER_REFRESH_RATE, false);
+        Log.d(TAG, "Starting banner update timer...");
         Log.d("Before clearing", Integer.toString(timerManager.getListSize()) + " timers");
         timerManager.clearInactiveTimers();
         Log.d("After clearing", Integer.toString(timerManager.getListSize()) + " timers");
@@ -470,7 +678,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     public void hideAds() {
         hideAmazonBanner();
-        hideAdmobBanner();
+        hideAerservBanner();
         hideAdContainer();
     }
 
@@ -488,7 +696,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (newConfig.orientation != lastOrientation) {
-            hideAdmobBanner();
+            hideAerservBanner();
             hideAmazonBanner();
             Timer timer = new Timer();
             TimerTask task = new TimerTask() {
@@ -509,56 +717,73 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void loadNextBanner(String currentBanner) {
-        // Determine which ad network comes next in the waterfall
-        // Later the network positions will be dynamically set from a server
-        int nextNetwork;
-        if (currentBanner == null) {
-            nextNetwork = 1;
-        } else {
-            nextNetwork = (adNetworkPositions.get(currentBanner).intValue() % adNetworkPositions.size()) + 1;
-            if (nextNetwork == 1) {
-                startBannerUpdateTimer();
-                return;
-            }
-        }
-
-        Set<String> networks = adNetworkPositions.keySet();
-        for (String network : networks) {
-            if (adNetworkPositions.get(network).intValue() == nextNetwork) {
-                if (network.equals("Amazon")) {
-                    loadAmazonBanner();
-                } else if (network.equals("Admob")) {
-                    loadAdmobBanner();
-                } else {
-                    loadAmazonBanner();
+        try {
+            // Determine which ad network comes next in the waterfall
+            // Later the network positions will be dynamically set from a server
+            int nextNetwork;
+            if (currentBanner == null) {
+                nextNetwork = 1;
+            } else {
+                nextNetwork = (adNetworkPositions.get(currentBanner) % adNetworkPositions.size()) + 1;
+                if (nextNetwork == 1) {
+                    startBannerUpdateTimer();
+                    return;
                 }
-                return;
             }
+
+            Set<String> networks = adNetworkPositions.keySet();
+            for (String network : networks) {
+                if (adNetworkPositions.get(network) == nextNetwork) {
+                    if (network.equals("Amazon")) {
+                        loadAmazonBanner();
+                    } else if (network.equals("AerServ")) {
+                        if (isApi17) loadAerservBanner();
+                        else {
+                            Log.d(TAG, "Api level is below 17. Can't show Aerserv.");
+                            loadAmazonBanner();
+                        }
+                    } else {
+                        startBannerUpdateTimer();
+                    }
+                    return;
+                }
+            }
+            startBannerUpdateTimer();
+        } catch(Exception e) {
+            e.printStackTrace();
+            startBannerUpdateTimer();
         }
-        startBannerUpdateTimer();
     }
 
     public void loadAmazonBanner() {
-        Log.d("AD", "Loading amazon");
+        features.print(TAG, "Before loadAmazonBanner: " + System.currentTimeMillis());
+        Log.d(TAG, "Loading amazon");
         timerManager.cancelAllTimers();
         isPrimaryAdVisible = true;
-        hideAdmobBanner();
+        hideAerservBanner();
         // Can use this to get a mix of Amazon and admob ads. Good for testing.
         /*if (new Random().nextBoolean()) {
-			loadAdmobBanner();
+			loadAerservBanner();
 			return;
 		}*/
-        AdLayout banner = getAmazonBannerInstance();
-        AdTargetingOptions options = new AdTargetingOptions();
+        final AdLayout banner = getAmazonBannerInstance();
+        final AdTargetingOptions options = new AdTargetingOptions();
         options.setAge(18);
+
+        features.print(TAG, "Before loadAd (Amazon): " + System.currentTimeMillis());
         banner.loadAd(options);
+        features.print(TAG, "After loadAd (Amazon): " + System.currentTimeMillis());
+
+        features.print(TAG, "After loadAmazonBanner: " + System.currentTimeMillis());
     }
 
     public AdLayout getAmazonBannerInstance() {
-        //returns a fully configured instance of the primary banner
-        final AdLayout banner = (AdLayout) findViewById(R.id.primaryBanner);
-        Log.d("Amazon AD", "Banner height is " + Integer.toString(banner.getHeight()));
-        //banner.setTimeout(1); // This forces the admob ads to show instead of amazon
+        //returns a fully configured accountsActivityInstance of the primary banner
+        if (primaryBanner == null) primaryBanner = (AdLayout) findViewById(R.id.primaryBanner);
+        final AdLayout banner = primaryBanner;
+        Log.d(TAG, "Banner height is " + Integer.toString(banner.getHeight()));
+        // TODO Don't leave this next line in
+        //banner.setTimeout(1); // This forces the aerserv ads to show instead of amazon
         banner.bringToFront();
         banner.setVisibility(View.INVISIBLE); // We need to be able to get the width but don't want to see the previous ad
         //banner.requestLayout();
@@ -584,9 +809,11 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
             @Override
             public void onAdLoaded(Ad ad, AdProperties adProperties) {
+                features.print(TAG, "Before onAdLoaded (Amazon): " + System.currentTimeMillis());
                 banner.setVisibility(View.VISIBLE); // Now we can show the new ad that's been loaded
                 //banner.requestLayout();
                 startBannerUpdateTimer();
+                features.print(TAG, "After onAdLoaded (Amazon): " + System.currentTimeMillis());
             }
 
         });
@@ -595,78 +822,114 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void hideAmazonBanner() {
-        AdLayout primaryBanner = (AdLayout) findViewById(R.id.primaryBanner);
+        if (primaryBanner == null) primaryBanner = (AdLayout) findViewById(R.id.primaryBanner);
         primaryBanner.setVisibility(View.GONE);
         isPrimaryAdVisible = false;
     }
 
-    public void hideAdmobBanner() {
-        AdView secondaryBanner = (AdView) findViewById(R.id.secondaryBanner);
-        secondaryBanner.setVisibility(View.GONE);
-        isSecondaryAdVisible = false;
+    public void hideAerservBanner() {
+        if (middleBanner == null) middleBanner = (AerServBanner) findViewById(R.id.aerservBanner);
+        middleBanner.setVisibility(View.GONE);
     }
 
-    public void loadAdmobBanner() {
-        Log.d("AD", "Loading admob");
+    public void loadAerservBanner() {
+        // This should work for every device but the only way to be sure is to catch any exceptions and load Amazon instead
         timerManager.cancelAllTimers();
-        isPrimaryAdVisible = false;
-        hideAmazonBanner();
-        AdView banner = getAdmobBannerInstance();
-        // TODO Make sure this is set correctly before publishing
-        AdRequest adRequest;
-        if (!IS_AD_TESTING) {
-            adRequest = new AdRequest.Builder()
-                    .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
-                    .setGender(AdRequest.GENDER_MALE)
-                    .build();
-        } else {
-            adRequest = new AdRequest.Builder()
-                    .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
-                    .setGender(AdRequest.GENDER_MALE)
-                    .addTestDevice(AdRequest.DEVICE_ID_EMULATOR) // Emulator
-                    .build();
+        calculateAerservBannerSize();
+        try {
+            Log.d(TAG, "Loading middle banner");
+            final Activity act = this;
+            hideAmazonBanner();
+            if (middleBanner == null) middleBanner = (AerServBanner) findViewById(R.id.aerservBanner);
+            final AerServBanner banner = middleBanner;
+            //banner.kill();
+            banner.setVisibility(View.INVISIBLE);
+            banner.bringToFront();
+            //banner.requestLayout();
+            // This if statement is redundant but I'm scared to change it. Get over it!
+            if (!isMiddleBannerLoaded) {
+                Log.d(TAG, "Configging aerserv");
+                // Set up the ad configuration, starting with the proper PLC
+                AerServConfig config;
+                if (!IS_AD_TESTING) {
+                    config = new AerServConfig(act, chosenAerservPLC);
+                } else {
+                    config = new AerServConfig(act, AERSERV_TEST_BANNER_ID);
+                }
+
+                config.setKeywords(Arrays.asList("pokemon", "pokemon go", "video games", "mario"));
+                // The preloading seems to make it work the way I want it to. Don't ask me why.
+                //config.setPreload(true);
+                // Only need to see debugging if I'm testing it. Duh!
+                if (true) config.setDebug(true);
+
+                config.setEventListener(new AerServEventListener() {
+
+                    @SuppressWarnings("incomplete-switch")
+                    @Override
+                    public void onAerServEvent(AerServEvent event, List<Object> arg1) {
+                        // Every event is passed to this function. I just have to snatch at the ones I want to handle
+                        switch (event) {
+                            case AD_LOADED:
+                                Thread thread = new Thread() {
+                                    public void run() {
+                                        try {
+                                            Log.d(TAG, "AD_LOADED");
+                                            banner.requestLayout();
+                                            startBannerUpdateTimer(); // Load another ad after the allotted time
+                                        } catch (Exception e) {
+                                            loadNextBanner("AerServ");
+                                        }
+                                    }
+                                };
+                                // Have to run everything on the UI thread because AerServ is special
+                                act.runOnUiThread(thread);
+                                break;
+
+                            case AD_FAILED:
+                                Thread failThread = new Thread() {
+                                    public void run() {
+                                        Log.d(TAG, "AD_FAILED");
+                                        // Didn't work. Go to Admob
+                                        banner.setVisibility(View.INVISIBLE);
+                                        loadNextBanner("AerServ");
+                                    }
+                                };
+                                act.runOnUiThread(failThread);
+                                break;
+
+                            case PRELOAD_READY:
+                                Thread loadThread = new Thread() {
+                                    public void run() {
+                                        // The ad is ready to be loaded so now we load it. Not sure why but this was the only way I made it work
+                                        try {
+                                            banner.show();
+                                            banner.play();
+                                        } catch (Exception e) {
+                                            loadNextBanner("AerServ");
+                                        }
+                                    }
+                                };
+                                act.runOnUiThread(loadThread);
+                        }
+                    }
+
+                });
+                banner.setVisibility(View.VISIBLE);
+                banner.configure(config);
+                banner.show();
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "Caught an exception: " + e.getMessage());
+            // Something went wrong. Don't crash the app, just go to Admob ads
+            loadNextBanner("AerServ");
         }
-        banner.loadAd(adRequest);
     }
 
-    public AdView getAdmobBannerInstance() {
-        //returns a fully configured instance of the secondary banner
-        final AdView banner = (AdView) findViewById(R.id.secondaryBanner);
-        banner.bringToFront();
+    public AerServBanner getAerservBannerInstance() {
+        // This isn't currently used but could be at some point
+        final AerServBanner banner = (AerServBanner) findViewById(R.id.aerservBanner);
         banner.setVisibility(View.INVISIBLE);
-        //banner.requestLayout();
-        banner.setAdListener(new com.google.android.gms.ads.AdListener() {
-
-            @Override
-            public void onAdClosed() {
-                super.onAdClosed();
-            }
-
-            @Override
-            public void onAdFailedToLoad(int errorCode) {
-                loadNextBanner("Admob");
-                super.onAdFailedToLoad(errorCode);
-            }
-
-            @Override
-            public void onAdLeftApplication() {
-                super.onAdLeftApplication();
-            }
-
-            @Override
-            public void onAdLoaded() {
-                banner.setVisibility(View.VISIBLE);
-                banner.requestLayout();
-                startBannerUpdateTimer();
-                super.onAdLoaded();
-            }
-
-            @Override
-            public void onAdOpened() {
-                super.onAdOpened();
-            }
-
-        });
         return banner;
     }
 
@@ -678,6 +941,20 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 mapHelper.wideScan();
                 return true;
 
+            case R.id.action_spawn_scan:
+                mapHelper.wideSpawnScan();
+                //mapHelper.spawnScan(mapHelper.spawns);
+                return true;
+
+            case R.id.action_spawns:
+                mySpawns();
+                //mapHelper.spawnScan(mapHelper.spawns);
+                return true;
+
+            case R.id.action_refresh_accounts:
+                features.refreshAccounts();
+                return true;
+
             case R.id.action_tuner:
                 tuner();
                 return true;
@@ -686,14 +963,9 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 search();
                 return true;
 
-            case R.id.action_logout:
-                if (IS_AD_TESTING) mMap.clear();
-                else features.logout();
-                return true;
-
-            /*case R.id.action_help:
+            case R.id.action_help:
                 help();
-                return true;*/
+                return true;
 
             case R.id.action_about:
                 about();
@@ -708,6 +980,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 return true;
 
             case R.id.action_facebook:
+                //if (IS_AD_TESTING) features.loadCaptcha("https://club.pokemon.com/us/pokemon-trainer-club/parents/sign-up", features.go);
                 facebook();
                 return true;
 
@@ -720,10 +993,28 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 checkForAppUpdate();
                 return true;
 
-            default:
-                return super.onOptionsItemSelected(item);
+            case R.id.action_filter:
+                filter();
+                return true;
+
+            case R.id.action_iv_filter:
+                ivFilter();
+                return true;
+
+            case R.id.action_accounts:
+                loadAccountsScreen();
+                return true;
+
+            case R.id.action_preferences:
+                preferences();
+                return true;
+
+            case R.id.action_custom_images:
+                customImages();
+                return true;
         }
 
+        return true;
     }
 
     @Override
@@ -731,6 +1022,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.menu, menu);
         this.menu = menu;
+
         return true;
     }
 
@@ -750,15 +1042,17 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
         DisplayMetrics metrics = this.getResources().getDisplayMetrics();
         int googleLogoPadding = Math.round(90 * metrics.density) + 2;
+        int goodAccountsPadding = Math.round(32 * metrics.density) + 5;
         mapHelper.setPaddingLeft(5);
-        mapHelper.setPaddingTop(5);
+        mapHelper.setPaddingTop(goodAccountsPadding);
         mapHelper.setPaddingRight(5);
         mapHelper.setPaddingBottom(googleLogoPadding);
         mMap.setPadding(mapHelper.getPaddingLeft(), mapHelper.getPaddingTop(), mapHelper.getPaddingRight(), mapHelper.getPaddingBottom());
 
 
         try {
-            mMap.setMyLocationEnabled(true);
+            if (mapHelper.gpsModeNormal) mMap.setMyLocationEnabled(true);
+            else mMap.setMyLocationEnabled(false);
         } catch (SecurityException e) {
             e.printStackTrace();
         }
@@ -774,21 +1068,108 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         mMap.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener() {
             @Override
             public boolean onMyLocationButtonClick() {
-                mapHelper.setLocationOverride(true);
-                initLocation();
+                if (IS_AD_TESTING) {
+                    try {
+                        // enumerate pokemon and their types to make a lookup table
+                        String types = "";
+                        for (int n = 1; n <= 251; n++) {
+                            String type = PokemonMeta.getPokemonSettings(PokemonIdOuterClass.PokemonId.valueOf(n)).getType().name().toLowerCase();
+                            type = type.substring(type.lastIndexOf("_") + 1);
+                            types += PokemonIdOuterClass.PokemonId.valueOf(n).name() + "," + type + "\n";
+                        }
+                        features.print(TAG, types);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    mapHelper.setLocationOverride(true);
+                    initLocation();
+                }
                 return false;
             }
         });
 
         mMap.animateCamera(CameraUpdateFactory.zoomTo(AndroidMapHelper.DEFAULT_ZOOM));
 
-        //mapHelper.moveMe(TEST_LAT, TEST_LON);
-        //mapHelper.moveMe(FAIRPARK_LAT, FAIRPARK_LON);
-        //test();
+        final Context mContext = this;
+
+        // Code from http://stackoverflow.com/questions/13904651/android-google-maps-v2-how-to-add-marker-with-multiline-snippet
+        mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
+
+            @Override
+            public View getInfoWindow(Marker arg0) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(Marker marker) {
+
+                LinearLayout info = new LinearLayout(mContext);
+                info.setOrientation(LinearLayout.VERTICAL);
+
+                TextView title = new TextView(mContext);
+                title.setTextColor(Color.BLACK);
+                title.setGravity(Gravity.CENTER);
+                title.setTypeface(null, Typeface.BOLD);
+                title.setText(marker.getTitle());
+
+                TextView snippet = new TextView(mContext);
+                snippet.setTextColor(Color.GRAY);
+                snippet.setText(marker.getSnippet());
+                snippet.setGravity(Gravity.CENTER);
+
+                info.addView(title);
+                if (marker.getSnippet() != null && !marker.getSnippet().equals("")) info.addView(snippet);
+
+                return info;
+            }
+        });
+
+        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                if (marker.getAlpha() < 1f) return true;
+                else return false;
+            }
+        });
+
+        initLocation();
+
+        mapHelper.showSpawnsOnMap();
     }
 
     public void tuner() {
         Intent intent = new Intent(this, TunerActivity.class);
+        startActivity(intent);
+    }
+
+    public void mySpawns() {
+        Intent intent = new Intent(this, MySpawnsActivity.class);
+        startActivity(intent);
+    }
+
+    public void filter() {
+        Intent intent = new Intent(this, FilterActivity.class);
+        startActivity(intent);
+    }
+
+    public void ivFilter() {
+        Intent intent = new Intent(this, IVFilterActivity.class);
+        startActivity(intent);
+    }
+
+    public void loadAccountsScreen() {
+        Intent intent = new Intent(this, AccountsActivity.class);
+        startActivity(intent);
+    }
+
+    public void preferences() {
+        Intent intent = new Intent(this, PreferencesActivity.class);
+        startActivity(intent);
+    }
+
+    public void customImages() {
+        Intent intent = new Intent(this, CustomImagesActivity.class);
         startActivity(intent);
     }
 
@@ -797,7 +1178,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             try {
                 Intent intent =
                         new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_OVERLAY)
-                                .setBoundsBias(new LatLngBounds(new LatLng(mapHelper.getCurrentLat() + 0.1f, mapHelper.getCurrentLon() + 0.1f), new LatLng(mapHelper.getCurrentLat() + 0.1f, mapHelper.getCurrentLon() + 0.1f)))
+                                .setBoundsBias(new LatLngBounds(new LatLng(mapHelper.getCurrentLat() - 0.1f, mapHelper.getCurrentLon() - 0.1f), new LatLng(mapHelper.getCurrentLat() + 0.1f, mapHelper.getCurrentLon() + 0.1f)))
                                 .build(this);
                 startActivityForResult(intent, PLACE_AUTOCOMPLETE_REQUEST_CODE);
             } catch (Exception e) {
@@ -806,12 +1187,13 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                                 .build(this);
                 startActivityForResult(intent, PLACE_AUTOCOMPLETE_REQUEST_CODE);
             }
-        } catch (GooglePlayServicesRepairableException e) {
-            e.printStackTrace();
-            features.longMessage("Search error. Make sure you are connected to the Internet");
-        } catch (GooglePlayServicesNotAvailableException e) {
-            e.printStackTrace();
-            features.longMessage("Google Search not available at the moment. Please try again later.");
+        } catch (Exception e) {
+            if (e instanceof GooglePlayServicesRepairableException) features.longMessage("Search error. Make sure you are connected to the Internet");
+            else if (e instanceof GooglePlayServicesNotAvailableException) features.longMessage("Google Search not available at the moment. Please try again later.");
+            else {
+                e.printStackTrace();
+                features.longMessage("Unknown search error. Please try again later");
+            }
         }
     }
 
@@ -833,7 +1215,8 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void help() {
-
+        startActivity(new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.reddit.com/r/pokesensor/comments/4ymkuj/pokesensor_faq_and_troubleshooting/")));
     }
 
     /*public void help() {
@@ -926,8 +1309,16 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void contactUs() {
-        startActivity(new Intent(Intent.ACTION_VIEW,
-                Uri.parse("mailto:logickllc@gmail.com")));
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("mailto:logickllc@gmail.com")));
+        } catch(Exception e) {
+            if (e instanceof ActivityNotFoundException) {
+                features.longMessage(R.string.noMailActivity);
+            } else {
+                features.longMessage("Failed to start email client");
+            }
+        }
     }
 
     public void moreApps() {
@@ -988,20 +1379,25 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         Log.d(TAG, "Connected to Google Maps");
         if (mapHelper.isLocationInitialized()) return;
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+            String[] permissions = {Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION};
+            ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_REQUEST_CODE);
             return;
         }
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        if (prefs.getBoolean(PREF_FIRST_LOAD, true)) firstLoad();
-        else initLocation();
+        NativePreferences.lock();
+        boolean first = NativePreferences.getBoolean(PREF_FIRST_LOAD, true);
+        NativePreferences.unlock();
+
+        if (first)
+            firstLoad();
+        else if (mMap != null)
+            initLocation();
     }
 
     public void firstLoad() {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean(PREF_FIRST_LOAD, false);
-        editor.apply();
+        NativePreferences.lock();
+        NativePreferences.putBoolean(PREF_FIRST_LOAD, false);
+        NativePreferences.unlock();
 
         final Context con = this;
         Runnable r = new Runnable() {
@@ -1010,13 +1406,24 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 AlertDialog.Builder builder = new AlertDialog.Builder(con);
                 builder.setTitle(R.string.welcomeTitle);
                 builder.setMessage(R.string.welcomeMessage);
-                builder.setPositiveButton(R.string.getStarted, new DialogInterface.OnClickListener() {
+                builder.setPositiveButton("Follow on Twitter", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        initLocation();
+                        if (mMap != null) initLocation();
+                        twitter();
                     }
                 });
-                builder.create().show();
+                builder.setNegativeButton(R.string.getStarted, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (mMap != null) initLocation();
+                    }
+                });
+                try {
+                    builder.create().show();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         };
         runOnUiThread(r);
@@ -1026,6 +1433,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
             case LOCATION_PERMISSION_REQUEST_CODE:
+                if (permissions.length == 0 || grantResults.length == 0 || permissions.length != grantResults.length) return;
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED || grantResults[1] == PackageManager.PERMISSION_GRANTED) {
                     // We can now move forward with our location finding
                     initLocation();
@@ -1037,20 +1445,40 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void initLocation() {
+        if (!client.isConnected() || mMap == null) return;
         try {
             Location loc = LocationServices.FusedLocationApi.getLastLocation(client);
             if (loc != null) mapHelper.moveMe(loc.getLatitude(), loc.getLongitude(), true, true);
-            request = LocationRequest.create()
-                    .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                    .setInterval(MapHelper.LOCATION_UPDATE_INTERVAL)
-                    .setFastestInterval(MapHelper.LOCATION_UPDATE_INTERVAL);
-            LocationServices.FusedLocationApi.requestLocationUpdates(client, request, this);
+            if (mapHelper.gpsModeNormal) {
+                request = LocationRequest.create()
+                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                        .setInterval(MapHelper.LOCATION_UPDATE_INTERVAL)
+                        .setFastestInterval(MapHelper.LOCATION_UPDATE_INTERVAL);
+                LocationServices.FusedLocationApi.requestLocationUpdates(client, request, this);
+            }
             mapHelper.setLocationInitialized(true);
-            if (!mapHelper.isSearched()) mapHelper.wideScan();
+            //if (!mapHelper.isSearched()) mapHelper.wideScan();
             Log.d(TAG, "Location initialized");
         } catch (SecurityException e) {
             e.printStackTrace();
             deniedLocationPermission();
+        }
+    }
+
+    public void refreshGpsPermissions() {
+        if (client == null || !client.isConnected()) return;
+        try {
+            if (mapHelper.gpsModeNormal) {
+                request = LocationRequest.create()
+                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                        .setInterval(MapHelper.LOCATION_UPDATE_INTERVAL)
+                        .setFastestInterval(MapHelper.LOCATION_UPDATE_INTERVAL);
+                LocationServices.FusedLocationApi.requestLocationUpdates(client, request, this);
+            } else {
+                LocationServices.FusedLocationApi.removeLocationUpdates(client, this);
+            }
+        } catch (SecurityException e) {
+            e.printStackTrace();
         }
     }
 
@@ -1067,6 +1495,192 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public void onLocationChanged(Location location) {
         if (mapHelper.isLocationOverridden() == false)
             mapHelper.moveMe(location.getLatitude(), location.getLongitude(), false, false);
-        if (!mapHelper.isSearched()) mapHelper.wideScan();
+        //if (!mapHelper.isSearched()) mapHelper.wideScan();
+    }
+
+    public void updateGoodAccountsLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                TextView goodAccountsView = (TextView) findViewById(R.id.goodAccountsLabel);
+                goodAccountsView.setText(AccountManager.getGoodAccounts().size() + "/" + AccountManager.getNumAccounts());
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void resetGoodAccountsLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                TextView goodAccountsView = (TextView) findViewById(R.id.goodAccountsLabel);
+                goodAccountsView.setText("0/" + AccountManager.getNumAccounts());
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void firstMultiAccountLoad() {
+        // Handle the discrepancies between this version and the last version
+        NativePreferences.lock();
+
+        try {
+
+            if (NativePreferences.getInt(PREF_NUM_ACCOUNTS, -1) == -1) {
+                if (!NativePreferences.getString(PREF_USERNAME, "").equals("")) {
+                    if (!NativePreferences.getString(PREF_USERNAME2, "").equals("")) {
+                        NativePreferences.putInt(PREF_NUM_ACCOUNTS, 2);
+                    } else {
+                        NativePreferences.putInt(PREF_NUM_ACCOUNTS, 1);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        NativePreferences.putBoolean(PREF_FIRST_MULTIACCOUNT_LOAD, false);
+        NativePreferences.unlock();
+    }
+
+    public void firstCopyrightLoad() {
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("No More Images")
+                    .setMessage("Upon request of The Pokemon Company, I have removed all Pokemon images from the app. I replaced them with the Pokemon names. You can add your own custom images the Settings menu, but don't use any images that you don't have the rights to use.")
+                    .setNegativeButton("Got It!", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            NativePreferences.lock("actual first copyright load");
+                            NativePreferences.putBoolean(PREF_FIRST_COPYRIGHT_LOAD, false);
+                            NativePreferences.unlock();
+                        }
+                    })
+                    .setPositiveButton("Custom Images", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            NativePreferences.lock("actual first copyright load");
+                            NativePreferences.putBoolean(PREF_FIRST_COPYRIGHT_LOAD, false);
+                            NativePreferences.unlock();
+                            help();
+                        }
+                    });
+            builder.create().show();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public int getAppVersion() {
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return pInfo.versionCode;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    public int getImageSize() {
+        switch ((int) mapHelper.imageSize) {
+            case 0:
+                return 32;
+
+            case 1:
+                return 64;
+
+            case 2:
+                return 96;
+
+            case 3:
+                return 128;
+
+            default:
+                return 96;
+        }
+    }
+
+    public void updateRpmLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmView.setText((PokeHashProvider.rpm - PokeHashProvider.requestsRemaining) + "/" + PokeHashProvider.rpm + " rpm");
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void resetRpmLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmView.setText("0/0 rpm");
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void showRpmLabel() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmView.setVisibility(View.VISIBLE);
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void hideRpmLabel() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmView.setVisibility(View.GONE);
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void updateRpmCountLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                long timeLeft = (PokeHashProvider.rpmTimeLeft - Calendar.getInstance().getTime().getTime() / 1000);
+                if (timeLeft < 0) timeLeft = 0;
+                rpmCountView.setText(timeLeft + "s");
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void resetRpmCountLabelText() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmCountView.setText("0s");
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void showRpmCountLabel() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmCountLayout.setVisibility(View.VISIBLE);
+            }
+        };
+        features.runOnMainThread(runnable);
+    }
+
+    public void hideRpmCountLabel() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                rpmCountLayout.setVisibility(View.GONE);
+            }
+        };
+        features.runOnMainThread(runnable);
     }
 }

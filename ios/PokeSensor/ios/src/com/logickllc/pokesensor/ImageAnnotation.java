@@ -10,6 +10,10 @@ public class ImageAnnotation extends MKPointAnnotation {
 	public MKAnnotationView view;
 	public UIControl control;
 	public UILabel callout;
+	public String ivs = "";
+	public boolean isCustom = false;
+	public String name;
+	public int pokedexNumber;
 	
 	public ImageAnnotation(String imagePath) {
 		super();
@@ -17,10 +21,8 @@ public class ImageAnnotation extends MKPointAnnotation {
 	}
 	
 	public void initCallout() {
-		if (callout == null) {
-			callout = new UILabel();
-			view.setDetailCalloutAccessoryView(callout);
-		}
+		callout = new UILabel();
+		view.setDetailCalloutAccessoryView(callout);
 	}
 	
 	public ImageAnnotation(ImageAnnotation copy) {

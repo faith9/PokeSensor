@@ -3,20 +3,21 @@ package com.logickllc.pokesensor;
 import org.robovm.apple.corelocation.CLLocationCoordinate2D;
 
 import com.badlogic.gdx.math.Vector2;
+import com.pokegoapi.api.map.pokemon.NearbyPokemon;
 
 import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 
 public class NearbyPokemonGPS {
-    private NearbyPokemonOuterClass.NearbyPokemon pokemon;
+    private NearbyPokemon pokemon;
     private CLLocationCoordinate2D coords;
     private Vector2 cartesianCoords;
 
-    public NearbyPokemonGPS(NearbyPokemonOuterClass.NearbyPokemon pokemon, CLLocationCoordinate2D coords) {
+    public NearbyPokemonGPS(NearbyPokemon pokemon, CLLocationCoordinate2D coords) {
         this.pokemon = pokemon;
         this.coords = coords;
     }
 
-    public NearbyPokemonOuterClass.NearbyPokemon getPokemon() {
+    public NearbyPokemon getPokemon() {
         return pokemon;
     }
 
