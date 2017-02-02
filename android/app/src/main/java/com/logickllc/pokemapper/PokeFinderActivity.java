@@ -123,7 +123,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
     //public Timer bannerUpdateTimer = new Timer(); //Reloads the primary banner periodically. Secondary banner refreshes itself
-    public final long BANNER_REFRESH_RATE = 15000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
+    public final long BANNER_REFRESH_RATE = 30000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
     public Timer interstitialTimer = new Timer(); //Sets flag that allows interstitial to be shown only after a certain time has passed
     public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
     public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
