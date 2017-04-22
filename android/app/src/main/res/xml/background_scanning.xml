@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="BackgroundScanning"
+        android:title="Background Scanning"
+        android:summary="Scan at regular intervals while app is in background"/>
+
+    <EditTextPreference
+        android:defaultValue="15"
+        android:inputType="number"
+        android:maxEms="3"
+        android:key="BackgroundInterval"
+        android:title="Scan Interval"
+        android:summary="Time in minutes between background scans"/>
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="BackgroundIncludeNearby"
+        android:title="Include Nearby Pokemon"
+        android:summary="Notify of Pokemon that are nearby but not on map"
+        />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="CaptchaNotifications"
+        android:title="Captcha Notifications"
+        android:summary="Notify when accounts receive captchas"
+        />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="BackgroundScanIvs"
+        android:title="Scan IVs"
+        android:summary="Whether to scan IVs in background scan"
+        />
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="OnlyScanSpawns"
+        android:title="Only Scan Spawns"
+        android:summary="Enable to do a spawn scan, disable to do full scan"
+        />
+
+    <Preference
+        android:key="FakeNotificationFilter"
+        android:title="Notification Filter"
+        android:summary="Control which Pokemon you get notifications for"
+        />
+
+</PreferenceScreen>

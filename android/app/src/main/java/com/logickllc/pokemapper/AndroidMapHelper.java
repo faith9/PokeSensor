@@ -2,15 +2,25 @@ package com.logickllc.pokemapper;
 
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.location.Location;
+import android.net.Uri;
+import android.os.Build;
+import android.support.v4.app.NotificationCompat;
+import android.support.v7.app.AlertDialog;
 import android.util.DisplayMetrics;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -29,6 +39,8 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.logickllc.pokesensor.api.Account;
 import com.logickllc.pokesensor.api.AccountManager;
 import com.logickllc.pokesensor.api.AccountScanner;
@@ -41,13 +53,12 @@ import com.logickllc.pokesensor.api.WildPokemonTime;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.api.map.pokemon.NearbyPokemon;
-import com.pokegoapi.api.map.pokemon.encounter.EncounterResult;
-import com.pokegoapi.exceptions.CaptchaActiveException;
-import com.pokegoapi.exceptions.LoginFailedException;
-import com.pokegoapi.exceptions.RemoteServerException;
-import com.pokegoapi.exceptions.hash.HashException;
-import com.pokegoapi.exceptions.hash.HashLimitExceededException;
-import com.pokegoapi.main.PokemonMeta;
+import com.pokegoapi.exceptions.request.CaptchaActiveException;
+import com.pokegoapi.exceptions.request.HashException;
+import com.pokegoapi.exceptions.request.HashLimitExceededException;
+import com.pokegoapi.exceptions.request.LoginFailedException;
+import com.pokegoapi.exceptions.request.RequestFailedException;
+import com.pokegoapi.main.RequestHandler;
 import com.pokegoapi.util.PokeDictionary;
 import com.pokegoapi.util.Signature;
 import com.pokegoapi.util.hash.pokehash.PokeHashProvider;
@@ -55,19 +66,19 @@ import com.pokegoapi.util.hash.pokehash.PokeHashProvider;
 import org.apache.commons.math3.geometry.euclidean.twod.Vector2D;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
+import java.lang.reflect.Type;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
@@ -80,6 +91,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import POGOProtos.Data.PokemonDataOuterClass;
 import POGOProtos.Enums.PokemonIdOuterClass;
 
 public class AndroidMapHelper extends MapHelper {
@@ -103,6 +115,14 @@ public class AndroidMapHelper extends MapHelper {
     public static final String PREF_FALLBACK_API = "FallbackApi";
     public static final String PREF_2CAPTCHA_KEY = "CaptchaKey";
     public static final String PREF_NEW_API_KEY = "NewApiKey";
+    public static final String PREF_BACKGROUND_SCANNING = "BackgroundScanning";
+    public static final String PREF_BACKGROUND_INTERVAL = "BackgroundInterval";
+    public static final String PREF_BACKGROUND_INCLUDE_NEARBY = "BackgroundIncludeNearby";
+    public static final String PREF_CAPTCHA_NOTIFICATIONS = "CaptchaNotifications";
+    public static final String PREF_BACKGROUND_SCAN_IVS = "BackgroundScanIvs";
+    public static final String PREF_SHOW_MOVESETS = "ShowMovesets";
+    public static final String PREF_SHOW_HEIGHT_WEIGHT = "ShowHeightWeight";
+    public static final String PREF_ONLY_SCAN_SPAWNS = "OnlyScanSpawns";
     public static final float DEFAULT_ZOOM = 16f;
 
     private Activity act;
@@ -146,6 +166,19 @@ public class AndroidMapHelper extends MapHelper {
     private final int GOOD_ACCOUNTS_IMAGE_DP = 32;
     private Bitmap tempBitmap = null, tempCustomBitmap = null;
     private float INITIAL_NAME_MARKER_TEXT_SIZE = Float.NEGATIVE_INFINITY;
+    public ConcurrentHashMap<Long, String> nearbyBackgroundPokemon = new ConcurrentHashMap<>();
+    public ConcurrentHashMap<Long, String> wildBackgroundPokemon = new ConcurrentHashMap<>();
+    public ConcurrentHashMap<Long, String> wildBackgroundPokemonIvs = new ConcurrentHashMap<>();
+    public ArrayList<Long> notifiedWilds = new ArrayList<>();
+    public ArrayList<Long> notifiedNearbies = new ArrayList<>();
+    public int backgroundCaptchasLost = 0;
+    public boolean scanningBackground = false;
+    public boolean spawnsLoaded = false;
+    public boolean apiKeyPromptVisible = false;
+    public static final String PAID_API_HELP_PAGE_URL = "https://www.reddit.com/r/pokesensor/comments/5yk6hu/paid_api_help/?ref=share&ref_source=link";
+
+    public static ArrayList<RequestHandler> requestHandlers = null;
+    public static final int MAX_SCAN_ERROR_COUNT = 3;
 
     public String[] types = "BULBASAUR,grass|IVYSAUR,grass|VENUSAUR,grass|CHARMANDER,fire|CHARMELEON,fire|CHARIZARD,fire|SQUIRTLE,water|WARTORTLE,water|BLASTOISE,water|CATERPIE,bug|METAPOD,bug|BUTTERFREE,bug|WEEDLE,bug|KAKUNA,bug|BEEDRILL,bug|PIDGEY,normal|PIDGEOTTO,normal|PIDGEOT,normal|RATTATA,normal|RATICATE,normal|SPEAROW,normal|FEAROW,normal|EKANS,poison|ARBOK,poison|PIKACHU,electric|RAICHU,electric|SANDSHREW,ground|SANDSLASH,ground|NIDORAN_FEMALE,poison|NIDORINA,poison|NIDOQUEEN,poison|NIDORAN_MALE,poison|NIDORINO,poison|NIDOKING,poison|CLEFAIRY,fairy|CLEFABLE,fairy|VULPIX,fire|NINETALES,fire|JIGGLYPUFF,normal|WIGGLYTUFF,normal|ZUBAT,poison|GOLBAT,poison|ODDISH,grass|GLOOM,grass|VILEPLUME,grass|PARAS,bug|PARASECT,bug|VENONAT,bug|VENOMOTH,bug|DIGLETT,ground|DUGTRIO,ground|MEOWTH,normal|PERSIAN,normal|PSYDUCK,water|GOLDUCK,water|MANKEY,fighting|PRIMEAPE,fighting|GROWLITHE,fire|ARCANINE,fire|POLIWAG,water|POLIWHIRL,water|POLIWRATH,water|ABRA,psychic|KADABRA,psychic|ALAKAZAM,psychic|MACHOP,fighting|MACHOKE,fighting|MACHAMP,fighting|BELLSPROUT,grass|WEEPINBELL,grass|VICTREEBEL,grass|TENTACOOL,water|TENTACRUEL,water|GEODUDE,rock|GRAVELER,rock|GOLEM,rock|PONYTA,fire|RAPIDASH,fire|SLOWPOKE,water|SLOWBRO,water|MAGNEMITE,electric|MAGNETON,electric|FARFETCHD,normal|DODUO,normal|DODRIO,normal|SEEL,water|DEWGONG,water|GRIMER,poison|MUK,poison|SHELLDER,water|CLOYSTER,water|GASTLY,ghost|HAUNTER,ghost|GENGAR,ghost|ONIX,rock|DROWZEE,psychic|HYPNO,psychic|KRABBY,water|KINGLER,water|VOLTORB,electric|ELECTRODE,electric|EXEGGCUTE,grass|EXEGGUTOR,grass|CUBONE,ground|MAROWAK,ground|HITMONLEE,fighting|HITMONCHAN,fighting|LICKITUNG,normal|KOFFING,poison|WEEZING,poison|RHYHORN,ground|RHYDON,ground|CHANSEY,normal|TANGELA,grass|KANGASKHAN,normal|HORSEA,water|SEADRA,water|GOLDEEN,water|SEAKING,water|STARYU,water|STARMIE,water|MR_MIME,psychic|SCYTHER,bug|JYNX,ice|ELECTABUZZ,electric|MAGMAR,fire|PINSIR,bug|TAUROS,normal|MAGIKARP,water|GYARADOS,water|LAPRAS,water|DITTO,normal|EEVEE,normal|VAPOREON,water|JOLTEON,electric|FLAREON,fire|PORYGON,normal|OMANYTE,rock|OMASTAR,rock|KABUTO,rock|KABUTOPS,rock|AERODACTYL,rock|SNORLAX,normal|ARTICUNO,ice|ZAPDOS,electric|MOLTRES,fire|DRATINI,dragon|DRAGONAIR,dragon|DRAGONITE,dragon|MEWTWO,psychic|MEW,psychic|CHIKORITA,grass|BAYLEEF,grass|MEGANIUM,grass|CYNDAQUIL,fire|QUILAVA,fire|TYPHLOSION,fire|TOTODILE,water|CROCONAW,water|FERALIGATR,water|SENTRET,normal|FURRET,normal|HOOTHOOT,normal|NOCTOWL,normal|LEDYBA,bug|LEDIAN,bug|SPINARAK,bug|ARIADOS,bug|CROBAT,poison|CHINCHOU,water|LANTURN,water|PICHU,electric|CLEFFA,fairy|IGGLYBUFF,normal|TOGEPI,fairy|TOGETIC,fairy|NATU,psychic|XATU,psychic|MAREEP,electric|FLAAFFY,electric|AMPHAROS,electric|BELLOSSOM,grass|MARILL,water|AZUMARILL,water|SUDOWOODO,rock|POLITOED,water|HOPPIP,grass|SKIPLOOM,grass|JUMPLUFF,grass|AIPOM,normal|SUNKERN,grass|SUNFLORA,grass|YANMA,bug|WOOPER,water|QUAGSIRE,water|ESPEON,psychic|UMBREON,dark|MURKROW,dark|SLOWKING,water|MISDREAVUS,ghost|UNOWN,psychic|WOBBUFFET,psychic|GIRAFARIG,normal|PINECO,bug|FORRETRESS,bug|DUNSPARCE,normal|GLIGAR,ground|STEELIX,steel|SNUBBULL,fairy|GRANBULL,fairy|QWILFISH,water|SCIZOR,bug|SHUCKLE,bug|HERACROSS,bug|SNEASEL,dark|TEDDIURSA,normal|URSARING,normal|SLUGMA,fire|MAGCARGO,fire|SWINUB,ice|PILOSWINE,ice|CORSOLA,water|REMORAID,water|OCTILLERY,water|DELIBIRD,ice|MANTINE,water|SKARMORY,steel|HOUNDOUR,dark|HOUNDOOM,dark|KINGDRA,water|PHANPY,ground|DONPHAN,ground|PORYGON2,normal|STANTLER,normal|SMEARGLE,normal|TYROGUE,fighting|HITMONTOP,fighting|SMOOCHUM,ice|ELEKID,electric|MAGBY,fire|MILTANK,normal|BLISSEY,normal|RAIKOU,electric|ENTEI,fire|SUICUNE,water|LARVITAR,rock|PUPITAR,rock|TYRANITAR,rock|LUGIA,psychic|HO_OH,fire|CELEBI,psychic".split("\\|");
 
@@ -280,6 +313,7 @@ public class AndroidMapHelper extends MapHelper {
     }
 
     public void wideScan() {
+        if (!PokeFinderActivity.mapHelper.promptForApiKey(act)) return;
         final ArrayList<Account> goodAccounts = AccountManager.getGoodAccounts();
         if (goodAccounts.size() == 0) {
             features.longMessage("You don't have any valid accounts!");
@@ -293,6 +327,7 @@ public class AndroidMapHelper extends MapHelper {
             return;
         }
         searched = true;
+        scanningBackground = false;
         removeTempScanCircle();
 
         newSpawns = 0;
@@ -329,6 +364,24 @@ public class AndroidMapHelper extends MapHelper {
                         e.printStackTrace();
                     }
                     noTimes.clear();
+
+                    try {
+                        //final ArrayList<Long> ids = new ArrayList<Long>(noTimes.keys().);
+                        Map<Long, WildPokemonTime> temp = pokeTimes;
+
+                        for (Long id : temp.keySet()) {
+                            try {
+                                features.print(TAG, "Removed poke marker!");
+                                Marker marker = pokeMarkers.remove(id);
+                                if (marker != null) marker.remove();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    pokeTimes.clear();
                 }
 
                 removeScanPoints();
@@ -411,6 +464,8 @@ public class AndroidMapHelper extends MapHelper {
 
                         LatLng center = new LatLng(currentLat, currentLon);
 
+                        ArrayList<ArrayList<AccountScanner>> workerList = new ArrayList<>();
+
                         for (int n = 0; n < MAX_POOL_THREADS; n++) {
                             int numWorkers = workersPerThread;
                             if (extraWorkers > 0) {
@@ -418,27 +473,46 @@ public class AndroidMapHelper extends MapHelper {
                                 numWorkers++;
                             }
 
-                            ArrayList<AccountScanner> scanAccounts = new ArrayList<>();
+                            ArrayList<AccountScanner> workers = new ArrayList<>();
+
                             for (int x = 0; x < numWorkers; x++) {
+                                Account account = goodAccounts.get(workerCursor++);
+                                AccountScanner scanner = new AccountScanner(account, new ArrayList<Vector2D>());
+                                workers.add(scanner);
+                            }
+
+                            workerList.add(workers);
+                        }
+
+                        //while (cursor < boxPoints.length) {
+                        for (int n = 0; n < workersPerThread + 1; n++) {
+                            for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                                if (n >= scanAccounts.size()) continue;
+                                AccountScanner scanner = scanAccounts.get(n);
+
                                 int numScans = scansPerWorker;
                                 if (extraScans > 0) {
                                     extraScans--;
                                     numScans++;
                                 }
 
-                                if (numScans == 0) break;
+                                if (numScans == 0) continue;
 
-                                ArrayList<Vector2D> scanPoints = new ArrayList<>();
                                 for (int y = 0; y < numScans; y++) {
-                                    scanPoints.add(boxPoints[cursor]);
+                                    scanner.points.add(boxPoints[cursor]);
                                     cursor++;
                                 }
-
-                                Account account = goodAccounts.get(workerCursor++);
-                                AccountScanner scanner = new AccountScanner(account, scanPoints);
-                                scanAccounts.add(scanner);
                             }
-                            scanThreads.add(accountScan(scanAccounts, SCAN_INTERVAL, center));
+                        }
+                        //}
+
+                        for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                            ArrayList<AccountScanner> usableAccounts = new ArrayList<>();
+                            for (AccountScanner scanner : scanAccounts) {
+                                if (!scanner.points.isEmpty()) usableAccounts.add(scanner);
+                            }
+
+                            scanThreads.add(accountScan(usableAccounts, SCAN_INTERVAL, center));
                         }
 
                         // Insert individual scans here
@@ -519,9 +593,9 @@ public class AndroidMapHelper extends MapHelper {
     }
 
     public void removeScanPoints() {
-        for (Marker scanPoint : scanPoints.values()) {
+        /*for (Marker scanPoint : scanPoints.values()) {
             if (scanPoint != null) scanPoint.remove();
-        }
+        }*/
     }
 
     public void removeScanPointCircles() {
@@ -567,12 +641,30 @@ public class AndroidMapHelper extends MapHelper {
                         return;
                     }
 
+                    Collections.sort(scanners, new Comparator<AccountScanner>() {
+                        @Override
+                        public int compare(AccountScanner o1, AccountScanner o2) {
+                            return Long.valueOf(o1.account.lastScanTime).compareTo(o2.account.lastScanTime);
+                        }
+                    });
+
                     try {
                         if (first) {
                             Thread.sleep(1000);
                             first = false;
                         }
-                        else Thread.sleep(SCAN_INTERVAL);
+                        else {
+                            for (AccountScanner scanner : scanners) {
+                                // Assume the first scanning account in the list is the one that will be ready fastest
+                                if (scanner.account.isScanning() && !readyToScan(scanner.account, SCAN_INTERVAL + 100)) {
+                                    long waitTime = scanner.account.lastScanTime + SCAN_INTERVAL + 100 - System.currentTimeMillis();
+                                    print(scanner.account.getUsername() + " needs to wait " + waitTime + " ms before it can scan again. Waiting...");
+                                    Thread.sleep(waitTime);
+                                    print(scanner.account.getUsername() + " has waited " + waitTime + " ms and is ready to scan again.");
+                                    break;
+                                }
+                            }
+                        }
                     } catch (InterruptedException e) {
                         if (abortScan) {
                             for (AccountScanner scanner : scanners) {
@@ -583,7 +675,9 @@ public class AndroidMapHelper extends MapHelper {
                     }
 
                     for (final AccountScanner scanner : scanners) {
-                        if (!scanner.account.isScanning()) continue;
+                        if (!scanner.account.isScanning() || !readyToScan(scanner.account, SCAN_INTERVAL + 100)) continue;
+
+                        assignRequestHandler(scanner.account);
 
                         if (abortScan) {
                             for (int n = 0; n < scanners.size(); n++) {
@@ -665,7 +759,7 @@ public class AndroidMapHelper extends MapHelper {
                             //features.longMessage("Resuming scan...");
                         }
 
-                        if (!scanner.repeat && scanner.pointCursor == scanner.points.size()) {
+                        if ((!scanner.repeat && scanner.pointCursor >= scanner.points.size()) || scanner.account.scanErrorCount >= MAX_SCAN_ERROR_COUNT) {
                             print(scanner.account.getUsername() + " is finished scanning.");
                             scanner.account.setScanning(false);
                             removeMyScanPoint(scanner.account);
@@ -694,14 +788,18 @@ public class AndroidMapHelper extends MapHelper {
         return run(scanThread);
     }
 
+    public boolean readyToScan(Account account, final long SCAN_INTERVAL) {
+        return account.lastScanTime + SCAN_INTERVAL < System.currentTimeMillis();
+    }
+
     public synchronized void removeMyScanPoint(final Account account) {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                Marker scanPoint = scanPoints.get(account);
+                //Marker scanPoint = scanPoints.get(account);
                 Circle scanPointCircle = scanPointCircles.get(account);
 
-                if (scanPoint != null) scanPoint.remove();
+                //if (scanPoint != null) scanPoint.remove();
                 if (scanPointCircle != null && !showScanDetails) scanPointCircle.remove();
             }
         };
@@ -717,11 +815,11 @@ public class AndroidMapHelper extends MapHelper {
     }
 
     public synchronized void updateScanPoint(LatLng loc, Account account) {
-        Marker scanPoint;
+        //Marker scanPoint;
         Circle scanPointCircle;
 
-        scanPoint = scanPoints.get(account);
-        if (scanPoint != null) scanPoint.remove();
+        //scanPoint = scanPoints.get(account);
+        //if (scanPoint != null) scanPoint.remove();
 
         if (!showScanDetails) {
             scanPointCircle = scanPointCircles.get(account);
@@ -738,9 +836,9 @@ public class AndroidMapHelper extends MapHelper {
 
         float alpha = 1f;
         if (showScanDetails) alpha = 0.5f;
-        scanPoint = mMap.addMarker(new MarkerOptions().position(loc).title(account.getUsername()).icon(scanPointIcon).anchor(0.32f, 0.32f).zIndex(-1.0f).alpha(alpha));
+        //scanPoint = mMap.addMarker(new MarkerOptions().position(loc).title(account.getUsername()).icon(scanPointIcon).anchor(0.32f, 0.32f).zIndex(-1.0f).alpha(alpha));
 
-        scanPoints.put(account, scanPoint);
+        //scanPoints.put(account, scanPoint);
 
         if (!showScanDetails) {
             scanPointCircles.put(account, scanPointCircle);
@@ -849,13 +947,18 @@ public class AndroidMapHelper extends MapHelper {
 
             go.setLocation(lat, lon, 0);
             Thread.sleep(200);
+
+            scanner.account.lastScanTime = System.currentTimeMillis();
+
             try {
                 features.refreshMapObjects(account);
-            } catch (CaptchaActiveException c) {
-                showCaptchaCircle(account);
+            } catch (Exception c) {
+                if (c instanceof CaptchaActiveException) showCaptchaCircle(account);
                 account.checkExceptionForCaptcha(c);
             }
             Thread.sleep(200);
+
+            scanner.account.lastScanTime = System.currentTimeMillis();
 
             scanner.activeSpawns.clear();
 
@@ -880,6 +983,9 @@ public class AndroidMapHelper extends MapHelper {
                 }
             }
 
+            DateFormat df = null;
+            if (collectSpawns) df = new SimpleDateFormat("mm:ss");
+
             // Figure out which pokemon in noTimes would show up in this search
             // All these Pokemon should show up in this search. Otherwise they must've despawned
             ArrayList<WildPokemonTime> currentPokes = getNoTimePokesInSector(lat, lon);
@@ -897,13 +1003,36 @@ public class AndroidMapHelper extends MapHelper {
 
                 int pokedexNumber = poke.getPokemonId().getNumber();
 
+                try {
+                    if (collectSpawns) {
+                        Spawn mySpawn = spawns.get(poke.getSpawnPointId());
+                        if (mySpawn != null) {
+                            long time = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+                            print("Spawn point " + mySpawn.id + " despawns at minute " + mySpawn.despawnMinute + " and second " + mySpawn.despawnSecond);
+                            if (time > 0 && time <= 3600000) {
+                                if (mySpawn.despawnMinute < 0 || mySpawn.despawnSecond < 0) {
+                                    long expTime = poke.getExpirationTimestampMs();
+                                    Date date = new Date(expTime);
+                                    String[] timeStrings = df.format(date).split(":");
+                                    mySpawn.despawnMinute = Integer.parseInt(timeStrings[0]);
+                                    mySpawn.despawnSecond = Integer.parseInt(timeStrings[1]);
+                                    print("We found the despawn time for spawn " + poke.getSpawnPointId() + ". It despawns at the " + timeStrings[0] + " minute and " + timeStrings[1] + " second mark!");
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Crashlytics.logException(e);
+                }
+
                 if (!features.filter.get(pokedexNumber) && (!showIvs || !overrideEnabled)) continue;
 
                 totalWildEncounters.add(poke.getEncounterId());
 
                 if (!scanner.activeSpawns.contains(poke.getSpawnPointId())) scanner.activeSpawns.add(poke.getSpawnPointId());
 
-                if ((!pokeTimes.containsKey(poke.getEncounterId()) && !noTimes.containsKey(poke.getEncounterId())) || ((poke.getExpirationTimestampMs() > 0 && poke.getExpirationTimestampMs() <= 3600000) && noTimes.containsKey(poke.getEncounterId()))) {
+                if ((!pokeTimes.containsKey(poke.getEncounterId()) && !noTimes.containsKey(poke.getEncounterId())) || ((poke.getExpirationTimestampMs() > 0 && poke.getExpirationTimestampMs() - System.currentTimeMillis() > 0 && poke.getExpirationTimestampMs() - System.currentTimeMillis() <= 3600000) && noTimes.containsKey(poke.getEncounterId()))) {
                     try {
                         //removables.add(poke.getEncounterId()); // If it's in noTimes and makes it here, that means we need to update the timer
                         for (WildPokemonTime temp : noTimes.values()) {
@@ -920,7 +1049,35 @@ public class AndroidMapHelper extends MapHelper {
                         Crashlytics.logException(e);
                     }
 
-                    long timeMs = poke.getExpirationTimestampMs();
+                    long timeMs = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+
+                    try {
+                        if (collectSpawns) {
+                            Spawn mySpawn = spawns.get(poke.getSpawnPointId());
+                            if (mySpawn != null) {
+                                if (mySpawn.despawnMinute >= 0 && mySpawn.despawnSecond >= 0) {
+                                    Date date = new Date(System.currentTimeMillis());
+                                    String[] timeStrings = df.format(date).split(":");
+                                    int currentMinute = Integer.parseInt(timeStrings[0]);
+                                    int currentSecond = Integer.parseInt(timeStrings[1]);
+                                    int currentTotalSeconds = currentMinute * 60 + currentSecond;
+                                    int despawnTotalSeconds = mySpawn.despawnMinute * 60 + mySpawn.despawnSecond;
+                                    if (despawnTotalSeconds < currentTotalSeconds)
+                                        despawnTotalSeconds += 3600;
+
+                                    int diffSeconds = despawnTotalSeconds - currentTotalSeconds;
+
+                                    timeMs = diffSeconds * 1000;
+
+                                    print("Calculated despawn time for " + mySpawn.id + " is " + timeMs);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+
                     if (timeMs > 0 && timeMs <= 3600000) {
                         long despawnTime = System.currentTimeMillis() + timeMs;
                         pokeTimes.put(poke.getEncounterId(), new WildPokemonTime(poke, despawnTime));
@@ -935,26 +1092,27 @@ public class AndroidMapHelper extends MapHelper {
             final List<CatchablePokemon> pokes = features.getCatchablePokemon(account, 15);
             final List<NearbyPokemon> nearbyPokes = features.getNearbyPokemon(account, 15);
 
-            if (wildPokes.isEmpty() && pokes.isEmpty() && nearbyPokes.isEmpty()) {
-                showEmptyResultsCircle(account);
-                return true;
-            } else {
-                showGoodCircle(account);
-
-                // If a current Pokemon is not found on rescanning this sector, it must be gone
-                for (WildPokemonTime currentPoke : currentPokes) {
-                    boolean contains = false;
-                    for (CatchablePokemon poke : wildPokes) {
-                        if (poke.getEncounterId() == currentPoke.getEncounterID()) {
-                            contains = true;
-                            break;
-                        }
-                    }
-                    if (!contains) {
-                        features.print(TAG, "Looks like " + currentPoke.getPoke().getPokemonId().name() + " with encounter ID " + currentPoke.getEncounterID() + " is no longer at spawn point " + currentPoke.getSpawnID() + ". Gonna remove it now.");
-                        removables.add(currentPoke.getEncounterID());
+            // If a current Pokemon is not found on rescanning this sector, it must be gone
+            for (WildPokemonTime currentPoke : currentPokes) {
+                boolean contains = false;
+                for (CatchablePokemon poke : wildPokes) {
+                    if (poke.getEncounterId() == currentPoke.getEncounterID()) {
+                        contains = true;
+                        break;
                     }
                 }
+                if (!contains) {
+                    features.print(TAG, "Looks like " + currentPoke.getPoke().getPokemonId().name() + " with encounter ID " + currentPoke.getEncounterID() + " is no longer at spawn point " + currentPoke.getSpawnID() + ". Gonna remove it now.");
+                    removables.add(currentPoke.getEncounterID());
+                    noTimes.remove(currentPoke.getEncounterID());
+                    pokeTimes.remove(currentPoke.getEncounterID());
+                }
+            }
+
+            if (wildPokes.isEmpty() && pokes.isEmpty() && nearbyPokes.isEmpty()) {
+                showEmptyResultsCircle(account);
+            } else {
+                showGoodCircle(account);
             }
 
             for (NearbyPokemon poke : nearbyPokes) {
@@ -984,13 +1142,16 @@ public class AndroidMapHelper extends MapHelper {
 
                 //String ivs = "";
                 ArrayList<String> ivHolder = new ArrayList<>();
+                ArrayList<String> moveHolder = new ArrayList<>();
+                ArrayList<String> heightWeightHolder = new ArrayList<>();
+                ArrayList<String> genderHolder = new ArrayList<>();
                 boolean hide = false;
                 if (showIvs) {
                     for (CatchablePokemon pokemon : pokes) {
                         if (poke.getPokemonId().getNumber() > Features.NUM_POKEMON) activateGen2();
                         if (poke.getSpawnPointId().equals(pokemon.getSpawnPointId())) {
                             try {
-                                hide = encounterPokemon(poke, pokemon, ivHolder, pokedexNumber);
+                                hide = encounterPokemon(poke, pokemon, ivHolder, moveHolder, heightWeightHolder, genderHolder, pokedexNumber);
                             } catch (Throwable e) {
                                 if (!features.filter.get(pokedexNumber)) hide = true;
 
@@ -1002,7 +1163,7 @@ public class AndroidMapHelper extends MapHelper {
                                         if (t instanceof HashLimitExceededException) {
                                             waitForHashLimit();
                                             try {
-                                                hide = encounterPokemon(poke, pokemon, ivHolder, pokedexNumber);
+                                                hide = encounterPokemon(poke, pokemon, ivHolder, moveHolder, heightWeightHolder, genderHolder, pokedexNumber);
                                             } catch (Throwable e2) {
                                                 if (!features.filter.get(pokedexNumber)) hide = true;
 
@@ -1054,22 +1215,48 @@ public class AndroidMapHelper extends MapHelper {
                     continue;
                 }
 
+                final Spawn finalSpawn = spawns.get(poke.getSpawnPointId());
                 final String myIvs = ivHolder.size() > 0 ? ivHolder.get(0) : "";
+                final String myMoves = moveHolder.size() > 0 ? moveHolder.get(0) : "";
+                final String myHeightWeight = heightWeightHolder.size() > 0 ? heightWeightHolder.get(0) : "";
+                final String gender = genderHolder.size() > 0 ? genderHolder.get(0) : "";
+
+                long tempTime = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+
+                if (collectSpawns && finalSpawn != null && finalSpawn.despawnMinute >= 0 && finalSpawn.despawnSecond >= 0) {
+                    Date date = new Date(System.currentTimeMillis() * 1000);
+                    String[] timeStrings = df.format(date).split(":");
+                    int currentMinute = Integer.parseInt(timeStrings[0]);
+                    int currentSecond = Integer.parseInt(timeStrings[1]);
+                    int currentTotalSeconds = currentMinute * 60 + currentSecond;
+                    int despawnTotalSeconds = finalSpawn.despawnMinute * 60 + finalSpawn.despawnSecond;
+                    if (despawnTotalSeconds < currentTotalSeconds) despawnTotalSeconds += 3600;
+
+                    int diffSeconds = despawnTotalSeconds - currentTotalSeconds;
+
+                    tempTime = System.currentTimeMillis() + diffSeconds * 1000;
+                }
+
+                final long time = tempTime;
+
                 Runnable r = new Runnable() {
                     @Override
                     public void run() {
-                        long time = poke.getExpirationTimestampMs();
-                        if (time > 0 && time <= 3600000) {
-                            String ms = String.format("%06d", time);
-                            int sec = Integer.parseInt(ms.substring(0, 3));
-                            //features.print(TAG, "Time string: " + time);
-                            //features.print(TAG, "Time shifted: " + (Long.parseLong(time) >> 16));
-                            features.print(TAG, "Time till hidden seconds: " + sec + "s");
-                            //features.print(TAG, "Data for " + poke.getPokemonId() + ":\n" + poke);
-                            showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), true, myIvs);
+                        if (pokeTimes.containsKey(poke.getEncounterId()) || noTimes.containsKey(poke.getEncounterId())) {
+                            if (time > 0 && time <= 3600000) {
+                                String ms = String.format("%06d", time);
+                                int sec = Integer.parseInt(ms.substring(0, 3));
+                                //features.print(TAG, "Time string: " + time);
+                                //features.print(TAG, "Time shifted: " + (Long.parseLong(time) >> 16));
+                                features.print(TAG, "Time till hidden seconds: " + sec + "s");
+                                //features.print(TAG, "Data for " + poke.getPokemonId() + ":\n" + poke);
+                                showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), true, myIvs, myMoves, myHeightWeight, gender);
+                            } else {
+                                features.print(TAG, "No valid expiry time given");
+                                showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), false, myIvs, myMoves, myHeightWeight, gender);
+                            }
                         } else {
-                            features.print(TAG, "No valid expiry time given");
-                            showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), false, myIvs);
+                            features.print(TAG, "Neither pokeTimes nor noTimes contains " + poke.getPokemonId() + " at spawn " + poke.getSpawnPointId() + " but it's trying to show on the map");
                         }
                     }
                 };
@@ -1097,12 +1284,18 @@ public class AndroidMapHelper extends MapHelper {
             };
             features.runOnMainThread(runnable);
 
+            saveSpawns();
+
+            account.scanErrorCount = 0;
+
             return true;
         } catch (Throwable e) {
             if (account.checkExceptionForCaptcha(e)) {
                 showCaptchaCircle(account);
             } else {
+                account.scanErrorCount++;
                 showErrorCircle(account);
+                Crashlytics.logException(e);
             }
 
             Throwable t = e;
@@ -1124,19 +1317,48 @@ public class AndroidMapHelper extends MapHelper {
             e.printStackTrace();
             if (e instanceof LoginFailedException) failedScanLogins++;
 
+            // Now remove everything that needs to be removed
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (Long id : removables) {
+                            if (!noTimes.containsKey(id)) {
+                                Marker marker = pokeMarkers.remove(id);
+                                if (marker != null) marker.remove();
+                            }
+                        }
+                        removables.clear();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+                }
+            };
+            features.runOnMainThread(runnable);
+
             return false;
         }
     }
 
-    public boolean encounterPokemon(CatchablePokemon poke, CatchablePokemon pokemon, ArrayList<String> ivHolder, int pokedexNumber) throws CaptchaActiveException, RemoteServerException, LoginFailedException {
+    public boolean encounterPokemon(CatchablePokemon poke, CatchablePokemon pokemon, ArrayList<String> ivHolder, ArrayList<String> moveHolder, ArrayList<String> heightWeightHolder, ArrayList<String> genderHolder, int pokedexNumber) throws RequestFailedException {
         String ivs = "";
         ivHolder.add(ivs);
 
-        EncounterResult result = (EncounterResult) pokemon.encounterPokemon();
+        String moves = "";
+        moveHolder.add(moves);
 
-        int attack = result.getPokemonData().getIndividualAttack();
-        int defense = result.getPokemonData().getIndividualDefense();
-        int stamina = result.getPokemonData().getIndividualStamina();
+        String heightWeight = "";
+        heightWeightHolder.add(heightWeight);
+
+        String gender = "";
+        genderHolder.add(gender);
+
+        PokemonDataOuterClass.PokemonData result = pokemon.encounter().getEncounteredPokemon();
+
+        int attack = result.getIndividualAttack();
+        int defense = result.getIndividualDefense();
+        int stamina = result.getIndividualStamina();
         int percent = (int) ((attack + defense + stamina) / 45f * 100);
 
         ivs = attack + " ATK  " + defense + " DEF  " + stamina + " STAM\n" + percent + "%";
@@ -1145,6 +1367,32 @@ public class AndroidMapHelper extends MapHelper {
         ivHolder.add(ivs);
 
         features.print(TAG, "IVs: " + ivs);
+
+        String move1 = readableEnum(result.getMove1().name());
+        String move2 = readableEnum(result.getMove2().name());
+
+        moves = "Move 1: " + move1 + "\nMove 2: " + move2;
+
+        moveHolder.clear();
+        moveHolder.add(moves);
+
+        String height = (Math.round(result.getHeightM() * 100) / 100.0) + " m";
+        String weight = (Math.round(result.getWeightKg() * 100) / 100.0) + " kg";
+
+        heightWeight = "Height: " + height + "\nWeight: " + weight;
+
+        heightWeightHolder.clear();
+        heightWeightHolder.add(heightWeight);
+
+        try {
+            gender = getGender(result.getPokemonDisplay().getGender().getNumber());
+            genderHolder.clear();
+            genderHolder.add(gender);
+            print("Gender of " + pokemon.getPokemonId().name() + " is " + gender);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            Crashlytics.logException(e);
+        }
 
         if (attack < minAttack || defense < minDefense || stamina < minStamina || percent < minPercent) {
             if (features.filterOverrides.get(pokedexNumber)) return false;
@@ -1160,7 +1408,37 @@ public class AndroidMapHelper extends MapHelper {
         return false;
     }
 
-    public synchronized void showPokemonAt(String name, int pokedexNumber, LatLng loc, long encounterid, boolean hasTime, String ivs) {
+    public String getGender(int genderInt) {
+        switch (genderInt) {
+            case 1:
+                return "♂";
+
+            case 2:
+                return "♀";
+
+            case 3:
+                return "";
+
+            default:
+                return "";
+        }
+    }
+
+    public String readableEnum(String value) {
+        try {
+            String temp = value.replaceAll("_", " ").toLowerCase();
+            String result = "";
+            for (String word : temp.split(" ")) {
+                result += word.substring(0, 1).toUpperCase() + (word.length() > 1 ? word.substring(1) : "") + " ";
+            }
+
+            return result.substring(0, result.length() - 1);
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
+    public synchronized void showPokemonAt(String name, int pokedexNumber, LatLng loc, long encounterid, boolean hasTime, String ivs, String moves, String heightWeight, String gender) {
         if (pokeMarkers.containsKey(encounterid)) return;
 
         String localName;
@@ -1183,7 +1461,7 @@ public class AndroidMapHelper extends MapHelper {
         if (name.equals("SANDLASH")) name = "SANDSLASH";
         try {
             int resourceID = act.getResources().getIdentifier(name.toLowerCase(), "drawable", act.getPackageName());
-            localName = localName.substring(0, 1).toUpperCase() + localName.substring(1).toLowerCase();
+            localName = localName.substring(0, 1).toUpperCase() + localName.substring(1).toLowerCase() + " " + gender;
 
             float anchorY = 0.5f;
             BitmapDescriptor icon;
@@ -1213,7 +1491,7 @@ public class AndroidMapHelper extends MapHelper {
             }
 
             float zIndex = 0;
-            if (showIvs) {
+            if ((!scanningBackground && showIvs) || (scanningBackground && backgroundScanning && backgroundScanIvs)) {
                 String percent = ivs;
                 int index = percent.indexOf("%");
                 if (index >= 0) {
@@ -1225,6 +1503,9 @@ public class AndroidMapHelper extends MapHelper {
             }
 
             localName += "\n" + ivs;
+            if (showMovesets) localName += "\n" + moves;
+            if (showHeightWeight) localName += "\n" + heightWeight;
+
             if (hasTime) {
                 pokeMarkers.put(encounterid, mMap.addMarker(new MarkerOptions().position(loc).title(localName).icon(icon).anchor(0.5f, anchorY).zIndex(zIndex)));
             } else {
@@ -1259,7 +1540,7 @@ public class AndroidMapHelper extends MapHelper {
 
         textView.setText(name);
 
-        if (showIvs && ivsAlwaysVisible) {
+        if (((!scanningBackground && showIvs) || (scanningBackground && backgroundScanning && backgroundScanIvs)) && ivsAlwaysVisible) {
             String percent = ivs;
             int index = percent.indexOf("%");
             if (index >= 0) {
@@ -1278,7 +1559,7 @@ public class AndroidMapHelper extends MapHelper {
         Rect bounds = new Rect();
         Paint textPaint = textView.getPaint();
         textPaint.setTextSize(INITIAL_NAME_MARKER_TEXT_SIZE);
-        String text = textView.getText().toString();
+        String text = textView.getText().toString() + "w";
 
         boolean success = false;
 
@@ -1347,8 +1628,9 @@ public class AndroidMapHelper extends MapHelper {
 
         // set the text string into the view before we turn it into an image
         TextView textView = (TextView) customImageLayout.findViewById(R.id.ivLabel);
+        textView.setText("?");
 
-        if (showIvs && ivsAlwaysVisible) {
+        if (((!scanningBackground && showIvs) || (scanningBackground && backgroundScanning && backgroundScanIvs)) && ivsAlwaysVisible) {
             textView.setVisibility(View.VISIBLE);
             String percent = ivs;
             int index = percent.indexOf("%");
@@ -1356,6 +1638,8 @@ public class AndroidMapHelper extends MapHelper {
                 percent = percent.substring(index - 3, index + 1).trim();
                 if (percent.substring(0,1).equals("M")) percent = percent.substring(1).trim();
                 textView.setText(percent);
+            } else {
+                textView.setVisibility(View.GONE);
             }
         } else {
             textView.setVisibility(View.GONE);
@@ -1670,16 +1954,18 @@ public class AndroidMapHelper extends MapHelper {
         boolean distanceFailed = false, timeFailed = false;
         NativePreferences.lock("update scan settings");
         maxScanDistance = NativePreferences.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
-        minScanTime = NativePreferences.getFloat(PREF_MIN_SCAN_TIME, 5);
+        minScanTime = NativePreferences.getFloat(PREF_MIN_SCAN_TIME, 10);
+
+        if (!PokeFinderActivity.mapHelper.promptForApiKey(act)) return false;
 
         try {
             maxScanDistance = features.getVisibleScanDistance();
-            if (maxScanDistance <= 0) throw new RemoteServerException("Unable to get scan distance from server");
+            if (maxScanDistance <= 0) throw new RequestFailedException("Unable to get scan distance from server");
             NativePreferences.putFloat(PREF_MAX_SCAN_DISTANCE, (float) maxScanDistance);
             features.print("PokeFinder", "Server says max visible scan distance is " + maxScanDistance);
         } catch (Exception e) {
             e.printStackTrace();
-            if (e instanceof RemoteServerException) distanceFailed = true;
+            if (e instanceof RequestFailedException) distanceFailed = true;
             maxScanDistance = NativePreferences.getFloat(PREF_MAX_SCAN_DISTANCE, 70);
             if (maxScanDistance <= 0) maxScanDistance = 70;
         }
@@ -1688,12 +1974,12 @@ public class AndroidMapHelper extends MapHelper {
 
         try {
             minScanTime = features.getMinScanRefresh();
-            if (minScanTime <= 0) throw new RemoteServerException("Unable to get scan delay from server");
+            if (minScanTime <= 0) throw new RequestFailedException("Unable to get scan delay from server");
             NativePreferences.putFloat(PREF_MIN_SCAN_TIME, (float) minScanTime);
             features.print("PokeFinder", "Server says min scan refresh is " + minScanTime);
         } catch (Exception e) {
             e.printStackTrace();
-            if (e instanceof RemoteServerException) timeFailed = true;
+            if (e instanceof RequestFailedException) timeFailed = true;
             minScanTime = NativePreferences.getFloat(PREF_MIN_SCAN_TIME, 5);
             if (minScanTime <= 0) minScanTime = 5;
         }
@@ -1710,18 +1996,18 @@ public class AndroidMapHelper extends MapHelper {
         return !distanceFailed && !timeFailed;
     }
 
-    @Override
+    /*@Override
     public void saveSpawns() {
         if (spawns.isEmpty() || scanning) return;
 
         for (Spawn spawn : spawns.values()) {
-            print("Spawn ID: " + spawn.id);
-            print("Location: " + spawn.loc());
-            print("History:");
+            //print("Spawn ID: " + spawn.id);
+            //print("Location: " + spawn.loc());
+            //print("History:");
 
             HashSet<Integer> history = new HashSet<>(spawn.history);
             for (Integer num : history) {
-                print(getLocalName(num));
+                //print(getLocalName(num));
             }
         }
 
@@ -1748,37 +2034,109 @@ public class AndroidMapHelper extends MapHelper {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }*/
+
+    @Override
+    public void saveSpawns() {
+        if (spawns.isEmpty() || !spawnsLoaded) return;
+
+        ArrayList<Spawn> spawnList = new ArrayList<Spawn>(spawns.values());
+
+        NativePreferences.lock("save spawns");
+        try {
+            Type type = new TypeToken<List<Spawn>>(){}.getType();
+            Gson gson = new Gson();
+            String text = gson.toJson(spawnList, type);
+
+            NativePreferences.putString("SpawnStorage", text);
+            //print("Saved spawns: " + spawns.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+            Crashlytics.logException(e);
+        }
+
+        NativePreferences.unlock();
     }
 
     @Override
     public void loadSpawns() {
-        if (scanning) return;
+        if (scanning || spawnsLoaded) return;
 
-        String baseFolder = act.getFilesDir().getAbsolutePath();
-        File fileName = new File(baseFolder + "spawn.ser");
+        if (PokeFinderActivity.instance.firstSpawnLearningLoad) {
+            print("Loaded serial spawns!");
+            String baseFolder = act.getFilesDir().getAbsolutePath();
+            File fileName = new File(baseFolder + "spawn.ser");
 
-        InputStream file = null;
-        InputStream buffer = null;
-        ObjectInput input = null;
-        try{
-            file = new FileInputStream(fileName);
-            buffer = new BufferedInputStream(file);
-            input = new ObjectInputStream(buffer);
+            InputStream file = null;
+            InputStream buffer = null;
+            ObjectInput input = null;
             try{
-                spawns = (ConcurrentHashMap<String, Spawn>)input.readObject();
-            } catch(Exception f) {
-                f.printStackTrace();
+                file = new FileInputStream(fileName);
+                buffer = new BufferedInputStream(file);
+                input = new ObjectInputStream(buffer);
+                try{
+                    spawns = (ConcurrentHashMap<String, Spawn>)input.readObject();
+                    spawnsLoaded = true;
+                } catch(Exception f) {
+                    f.printStackTrace();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
 
-        try {
-            //if (file != null) file.close();
-            //if (buffer != null) buffer.close();
-            if (input != null) input.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+            try {
+                //if (file != null) file.close();
+                //if (buffer != null) buffer.close();
+                if (input != null) input.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+            for (Spawn spawn : spawns.values()) {
+                spawn.despawnMinute = -1;
+                spawn.despawnSecond = -1;
+            }
+            NativePreferences.lock();
+            NativePreferences.putBoolean(PokeFinderActivity.instance.PREF_FIRST_SPAWN_LEARNING_LOAD, false);
+            NativePreferences.unlock();
+
+            PokeFinderActivity.instance.firstSpawnLearningLoad = false;
+
+            saveSpawns();
+        } else {
+            print("Loaded JSON spawns!");
+            ArrayList<Spawn> spawnList;
+            NativePreferences.lock("load spawns");
+            try {
+                Type type = new TypeToken<List<Spawn>>(){}.getType();
+                spawns.clear();
+                Gson gson = new Gson();
+                String newText = NativePreferences.getString("SpawnStorage", "");
+                spawnList = gson.fromJson(newText, type);
+                if (spawnList == null) {
+                    NativePreferences.unlock();
+                    spawnsLoaded = true;
+                    return;
+                }
+
+                for (int n = 0; n < spawnList.size(); n++) {
+                    Spawn spawn = spawnList.get(n);
+                    spawns.put(spawn.id, spawn);
+                }
+                spawnsLoaded = true;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Crashlytics.logException(e);
+            }
+
+            NativePreferences.unlock();
+
+            try {
+                print("Loaded " + spawns.size() + " spawns!");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -1821,15 +2179,16 @@ public class AndroidMapHelper extends MapHelper {
     }
 
     public void deleteAllSpawns() {
-        String baseFolder = act.getFilesDir().getAbsolutePath();
-        File fileName = new File(baseFolder + "spawn.ser");
-        fileName.delete();
+        NativePreferences.lock("delete all spawns");
+        NativePreferences.remove("SpawnStorage");
+        NativePreferences.unlock();
         spawns.clear();
         hideSpawnsOnMap();
     }
 
     @Override
-    public void wideSpawnScan() {
+    public void wideSpawnScan(boolean background) {
+        if (!PokeFinderActivity.mapHelper.promptForApiKey(act)) return;
         ConcurrentHashMap<String, Spawn> temp = new ConcurrentHashMap<>();
 
         // Figure out which coords are within the radius (of the square)
@@ -1853,8 +2212,12 @@ public class AndroidMapHelper extends MapHelper {
             if (distance[0] <= scanDistance) temp.put(spawn.id, spawn);
         }
 
-        if (!temp.isEmpty()) spawnScan(temp);
-        else features.shortMessage("You have to find spawn points in this area with regular scanning before you can do a spawn scan.");
+        if (!temp.isEmpty()) {
+            spawnScan(temp, background);
+        }
+        else {
+            if (!background) features.shortMessage("You have to find spawn points in this area with regular scanning before you can do a spawn scan.");
+        }
     }
 
     @Override
@@ -1872,19 +2235,29 @@ public class AndroidMapHelper extends MapHelper {
         minOverride = NativePreferences.getInt(PREF_MIN_OVERRIDE, 100);
         imageSize = NativePreferences.getLong(PREF_IMAGE_SIZE, 2);
         showScanDetails = NativePreferences.getBoolean(PREF_SHOW_SCAN_DETAILS, false);
-        Features.NUM_POKEMON = NativePreferences.getInt(PREF_NUM_POKEMON, 151);
+        Features.NUM_POKEMON = NativePreferences.getInt(PREF_NUM_POKEMON, 251);
         ivsAlwaysVisible = NativePreferences.getBoolean(PREF_IVS_ALWAYS_VISIBLE, true);
         defaultMarkersMode = NativePreferences.getLong(PREF_DEFAULT_MARKERS_MODE, 0);
         overrideEnabled = NativePreferences.getBoolean(PREF_OVERRIDE_ENABLED, minOverride != 100);
         clearMapOnScan = NativePreferences.getBoolean(PREF_CLEAR_MAP_ON_SCAN, false);
         gpsModeNormal = NativePreferences.getBoolean(PREF_GPS_MODE_NORMAL, true);
         use2Captcha = NativePreferences.getBoolean(PREF_USE_2CAPTCHA, false);
-        useNewApi = NativePreferences.getBoolean(PREF_USE_NEW_API, false);
+        //useNewApi = NativePreferences.getBoolean(PREF_USE_NEW_API, false);
         //fallbackApi = NativePreferences.getBoolean(PREF_FALLBACK_API, true);
         fallbackApi = false;
         NativePreferences.putBoolean(PREF_FALLBACK_API, false);
         captchaKey = NativePreferences.getString(PREF_2CAPTCHA_KEY, "");
         newApiKey = NativePreferences.getString(PREF_NEW_API_KEY, "");
+        backgroundScanning = NativePreferences.getBoolean(PREF_BACKGROUND_SCANNING, false);
+        backgroundInterval = NativePreferences.getString(PREF_BACKGROUND_INTERVAL, "15");
+        backgroundIncludeNearby = NativePreferences.getBoolean(PREF_BACKGROUND_INCLUDE_NEARBY, true);
+        captchaNotifications = NativePreferences.getBoolean(PREF_CAPTCHA_NOTIFICATIONS, true);
+        backgroundScanIvs = NativePreferences.getBoolean(PREF_BACKGROUND_SCAN_IVS, true);
+        showMovesets = NativePreferences.getBoolean(PREF_SHOW_MOVESETS, true);
+        showHeightWeight = NativePreferences.getBoolean(PREF_SHOW_HEIGHT_WEIGHT, false);
+        onlyScanSpawns = NativePreferences.getBoolean(PREF_ONLY_SCAN_SPAWNS, false);
+
+        useNewApi = true;
 
         if (useNewApi) {
             PokeFinderActivity.instance.showRpmLabel();
@@ -1901,18 +2274,22 @@ public class AndroidMapHelper extends MapHelper {
         Signature.fallbackApi = false;
     }
 
-    public void spawnScan(final ConcurrentHashMap<String, Spawn> searchSpawns) {
+    public void spawnScan(final ConcurrentHashMap<String, Spawn> searchSpawns, final boolean background) {
+        if (!promptForApiKey(act)) return;
+
         if (searchSpawns.isEmpty()) return;
 
         final ArrayList<Account> goodAccounts = AccountManager.getGoodAccounts();
         if (goodAccounts.size() == 0) {
-            features.longMessage("You don't have any valid accounts!");
+            if (!background) features.longMessage("You don't have any valid accounts!");
+            else sendNotification("PokeSensor doesn't have any valid scanning accounts!", "You may have to fill out some captchas or handle some other errors.", act);
             return;
         }
 
         if (scanning) return;
         else scanning = true;
         searched = true;
+        scanningBackground = background;
 
         if (mMap == null) return;
         removeTempScanCircle();
@@ -1939,7 +2316,7 @@ public class AndroidMapHelper extends MapHelper {
         Runnable main = new Runnable() {
             @Override
             public void run() {
-                if (clearMapOnScan) {
+                if (clearMapOnScan && !background) {
                     try {
                         //final ArrayList<Long> ids = new ArrayList<Long>(noTimes.keys().);
                         Map<Long, WildPokemonTime> temp = noTimes;
@@ -1957,6 +2334,24 @@ public class AndroidMapHelper extends MapHelper {
                         e.printStackTrace();
                     }
                     noTimes.clear();
+
+                    try {
+                        //final ArrayList<Long> ids = new ArrayList<Long>(noTimes.keys().);
+                        Map<Long, WildPokemonTime> temp = pokeTimes;
+
+                        for (Long id : temp.keySet()) {
+                            try {
+                                features.print(TAG, "Removed poke marker!");
+                                Marker marker = pokeMarkers.remove(id);
+                                if (marker != null) marker.remove();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    pokeTimes.clear();
                 }
 
                 removeScanPoints();
@@ -1999,6 +2394,9 @@ public class AndroidMapHelper extends MapHelper {
                         totalEncounters.clear();
                         totalWildEncounters.clear();
 
+                        nearbyBackgroundPokemon.clear();
+                        wildBackgroundPokemon.clear();
+
                         long SCAN_INTERVAL = (long) MapHelper.minScanTime * 1000;
 
                         features.print(TAG, "Scan interval: " + SCAN_INTERVAL);
@@ -2020,7 +2418,55 @@ public class AndroidMapHelper extends MapHelper {
 
                         ArrayList<Future> scanThreads = new ArrayList<>();
 
+                        ArrayList<ArrayList<AccountScanner>> workerList = new ArrayList<>();
+
                         for (int n = 0; n < MAX_POOL_THREADS; n++) {
+                            int numWorkers = workersPerThread;
+                            if (extraWorkers > 0) {
+                                extraWorkers--;
+                                numWorkers++;
+                            }
+
+                            ArrayList<AccountScanner> workers = new ArrayList<>();
+
+                            for (int x = 0; x < numWorkers; x++) {
+                                Account account = goodAccounts.get(workerCursor++);
+                                AccountScanner scanner = new AccountScanner(account);
+                                workers.add(scanner);
+                            }
+
+                            workerList.add(workers);
+                        }
+
+                        //while (cursor < boxPoints.length) {
+                        for (int n = 0; n < workersPerThread + 1; n++) {
+                            for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                                if (n >= scanAccounts.size()) continue;
+                                AccountScanner scanner = scanAccounts.get(n);
+
+                                if (searchSpawns.isEmpty()) break;
+                                Spawn mySpawn = new ArrayList<Spawn>(searchSpawns.values()).get(0);
+                                claimSpawn(mySpawn.id, searchSpawns);
+                                scanner.startSpawn = mySpawn;
+                            }
+                        }
+                        //}
+
+                        for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                            boolean valid = false;
+                            for (AccountScanner scanner : scanAccounts) {
+                                if (scanner.startSpawn != null) {
+                                    valid = true;
+                                    break;
+                                }
+                            }
+                            if (valid) scanThreads.add(accountScanSpawn(scanAccounts, SCAN_INTERVAL, searchSpawns, background));
+                        }
+
+
+
+
+                        /*for (int n = 0; n < MAX_POOL_THREADS; n++) {
                             int numWorkers = workersPerThread;
                             if (extraWorkers > 0) {
                                 extraWorkers--;
@@ -2041,7 +2487,7 @@ public class AndroidMapHelper extends MapHelper {
                             }
                             scanThreads.add(accountScanSpawn(scanAccounts, SCAN_INTERVAL, searchSpawns));
                             if (searchSpawns.isEmpty()) break;
-                        }
+                        }*/
 
                         // Insert individual scans here
 
@@ -2055,7 +2501,7 @@ public class AndroidMapHelper extends MapHelper {
                                 for (Future thread : scanThreads) {
                                     thread.cancel(true);
                                 }
-                                features.longMessage(R.string.abortScan);
+                                if (!background) features.longMessage(R.string.abortScan);
                                 scanning = false;
 
                                 break;
@@ -2081,7 +2527,7 @@ public class AndroidMapHelper extends MapHelper {
                         features.runOnMainThread(dismissRunnable);
 
 
-                        if (collectSpawns) {
+                        if (collectSpawns && !background) {
                             if (newSpawns > 1)
                                 features.shortMessage("Found " + newSpawns + " new spawn points and added them to My Spawns!");
                             else if (newSpawns == 1)
@@ -2091,6 +2537,65 @@ public class AndroidMapHelper extends MapHelper {
                         saveScanEvent(totalWildEncounters.size(), (float) (Math.PI * Math.pow(scanDistance, 2)));
 
                         scanning = false;
+
+                        if (background) {
+                            backgroundCaptchasLost = 0;
+                            for (int n = 0; n < goodAccounts.size(); n++) {
+                                if (goodAccounts.get(n).getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED) {
+                                    backgroundCaptchasLost++;
+                                }
+                            }
+
+                            if (backgroundCaptchasLost > 0) {
+                                if (captchaNotifications)
+                                    sendNotification(backgroundCaptchasLost + " accounts got captcha'd in the last scan", "You now have " + AccountManager.getGoodAccounts().size() + " good accounts.", act);
+                            }
+
+                            if (backgroundIncludeNearby) {
+                                // Get rid of the duplicates that are already on the map
+                                for (Long encounterId : wildBackgroundPokemon.keySet()) {
+                                    nearbyBackgroundPokemon.remove(encounterId);
+                                }
+
+                                ArrayList<String> nearbyPokes = new ArrayList<>();
+
+                                for (Long encounterId : nearbyBackgroundPokemon.keySet()) {
+                                    String name = nearbyBackgroundPokemon.get(encounterId);
+
+                                    if (!notifiedNearbies.contains(encounterId)) {
+                                        notifiedNearbies.add(encounterId);
+                                        nearbyPokes.add(name);
+                                    }
+                                }
+
+                                if (!nearbyPokes.isEmpty())
+                                    sendNearbyNotification(nearbyPokes, act);
+                                else
+                                    print("No nearby background pokes that weren't already included in wilds");
+                            }
+
+                            // Report on the Pokemon we found
+                            ArrayList<String> wildPokes = new ArrayList<>();
+                            ArrayList<String> wildPokeIvs = new ArrayList<>();
+
+                            for (Long encounterId : wildBackgroundPokemon.keySet()) {
+                                String name = wildBackgroundPokemon.get(encounterId);
+                                String ivs = wildBackgroundPokemonIvs.get(encounterId);
+
+                                if (!notifiedWilds.contains(encounterId)) {
+                                    notifiedWilds.add(encounterId);
+                                    wildPokes.add(name);
+                                    wildPokeIvs.add(ivs);
+                                }
+                            }
+
+                            if (!wildBackgroundPokemon.isEmpty())
+                                sendCatchableNotification(wildPokes, wildPokeIvs, act);
+
+
+                            if (PokeFinderActivity.instance.inBackground)
+                                PokeFinderActivity.instance.startBackgroundScanTimer();
+                        }
                     }
                 };
 
@@ -2312,9 +2817,10 @@ public class AndroidMapHelper extends MapHelper {
         return scanThread;
     }*/
 
-    public Future accountScanSpawn(final ArrayList<AccountScanner> scanners, final long SCAN_INTERVAL, final ConcurrentHashMap<String, Spawn> searchSpawns) {
+    public Future accountScanSpawn(final ArrayList<AccountScanner> scanners, final long SCAN_INTERVAL, final ConcurrentHashMap<String, Spawn> searchSpawns, final boolean background) {
         for (AccountScanner scanner : scanners) {
-            scanner.account.setScanning(true);
+            if (scanner.startSpawn != null) scanner.account.setScanning(true);
+            else scanner.account.setScanning(false);
         }
 
         Runnable scanThread = new Runnable() {
@@ -2338,8 +2844,31 @@ public class AndroidMapHelper extends MapHelper {
                         return;
                     }
 
+
+
+                    Collections.sort(scanners, new Comparator<AccountScanner>() {
+                        @Override
+                        public int compare(AccountScanner o1, AccountScanner o2) {
+                            return Long.valueOf(o1.account.lastScanTime).compareTo(o2.account.lastScanTime);
+                        }
+                    });
+
                     try {
-                        Thread.sleep(1000);
+                        if (first) {
+                            Thread.sleep(1000);
+                        }
+                        else {
+                            for (AccountScanner scanner : scanners) {
+                                // Assume the first scanning account in the list is the one that will be ready fastest
+                                if (scanner.account.isScanning() && !readyToScan(scanner.account, SCAN_INTERVAL + 100)) {
+                                    long waitTime = scanner.account.lastScanTime + SCAN_INTERVAL + 100 - System.currentTimeMillis();
+                                    print(scanner.account.getUsername() + " needs to wait " + waitTime + " ms before it can scan again. Waiting...");
+                                    Thread.sleep(waitTime);
+                                    print(scanner.account.getUsername() + " has waited " + waitTime + " ms and is ready to scan again.");
+                                    break;
+                                }
+                            }
+                        }
                     } catch (InterruptedException e) {
                         if (abortScan) {
                             for (AccountScanner scanner : scanners) {
@@ -2351,6 +2880,8 @@ public class AndroidMapHelper extends MapHelper {
 
                     for (final AccountScanner scanner : scanners) {
                         if (!scanner.account.isScanning()) continue;
+
+                        assignRequestHandler(scanner.account);
 
                         String id = scanner.startSpawn.id;
                         if (scanner.repeat) {
@@ -2455,31 +2986,55 @@ public class AndroidMapHelper extends MapHelper {
                             e.printStackTrace();
                         }
 
-                        scanner.repeat = !scanForPokemon(scanner, loc.latitude, loc.longitude);
+                        if (!background) scanner.repeat = !scanForPokemon(scanner, loc.latitude, loc.longitude);
+                        else scanner.repeat = !scanForPokemonBackground(scanner, loc.latitude, loc.longitude);
 
-                        while (((captchaModePopup && scanner.account.captchaScreenVisible) || (use2Captcha && scanner.account.isSolvingCaptcha())) && !abortScan) {
-                            try {
-                                scanner.repeat = true;
-                                Thread.sleep(1000);
-                                if (abortScan) {
-                                    for (int n = 0; n < scanners.size(); n++) {
-                                        scanners.get(n).account.setScanning(false);
+                        if (!background) {
+                            while (((captchaModePopup && scanner.account.captchaScreenVisible) || (use2Captcha && scanner.account.isSolvingCaptcha())) && !abortScan) {
+                                try {
+                                    scanner.repeat = true;
+                                    Thread.sleep(1000);
+                                    if (abortScan) {
+                                        for (int n = 0; n < scanners.size(); n++) {
+                                            scanners.get(n).account.setScanning(false);
+                                        }
+                                        return;
                                     }
-                                    return;
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                    if (abortScan) {
+                                        for (int n = 0; n < scanners.size(); n++) {
+                                            scanners.get(n).account.setScanning(false);
+                                        }
+                                        return;
+                                    }
                                 }
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                                if (abortScan) {
-                                    for (int n = 0; n < scanners.size(); n++) {
-                                        scanners.get(n).account.setScanning(false);
+                            }
+                        } else {
+                            while ((use2Captcha && scanner.account.isSolvingCaptcha()) && !abortScan) {
+                                try {
+                                    scanner.repeat = true;
+                                    Thread.sleep(1000);
+                                    if (abortScan) {
+                                        for (int n = 0; n < scanners.size(); n++) {
+                                            scanners.get(n).account.setScanning(false);
+                                        }
+                                        return;
                                     }
-                                    return;
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                    if (abortScan) {
+                                        for (int n = 0; n < scanners.size(); n++) {
+                                            scanners.get(n).account.setScanning(false);
+                                        }
+                                        return;
+                                    }
                                 }
                             }
                         }
 
-                        if (scanner.account.getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED) {
-                            print(scanner.account.getUsername() + " is aborting from a captcha.");
+                        if (scanner.account.getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED || scanner.account.scanErrorCount >= MAX_SCAN_ERROR_COUNT) {
+                            print(scanner.account.getUsername() + " is aborting.");
                             scanner.account.setScanning(false);
                             removeMyScanPoint(scanner.account);
                             continue;
@@ -2734,5 +3289,1005 @@ public class AndroidMapHelper extends MapHelper {
 
     public void stopResetRpmTimer() {
         if (resetRpmTimer != null) resetRpmTimer.cancel();
+    }
+
+    // TODO Background scanning + notifications
+
+    public void wideScanBackground() {
+        final ArrayList<Account> goodAccounts = AccountManager.getGoodAccounts();
+        if (goodAccounts.size() == 0) {
+            // TODO Notification here instead
+            sendNotification("PokeSensor doesn't have any valid scanning accounts!", "You may have to fill out some captchas or handle some other errors.", act);
+            //features.longMessage("You don't have any valid accounts!");
+            return;
+        }
+
+        if (scanning) return;
+        else scanning = true;
+        if (mMap == null) {
+            scanning = false;
+            return;
+        }
+        searched = true;
+        scanningBackground = true;
+
+        removeTempScanCircle();
+
+        newSpawns = 0;
+        currentSector = 0;
+        features.captchaScreenVisible = false;
+
+        updateScanSettings();
+        abortScan = false;
+        if (scanDistance > MAX_SCAN_DISTANCE) scanDistance = MAX_SCAN_DISTANCE;
+
+        final Context con = act;
+
+        final LinearLayout scanLayout = (LinearLayout) act.findViewById(R.id.scanLayout);
+        scanBar = (ProgressBar) act.findViewById(R.id.scanBar);
+        scanText = (TextView) act.findViewById(R.id.scanText);
+
+        Runnable main = new Runnable() {
+            @Override
+            public void run() {
+
+                removeScanPoints();
+                removeScanPointCircles();
+
+                scanBar.setProgress(0);
+                //scanBar.setMax(NUM_SCAN_SECTORS);
+                scanText.setText("");
+
+                scanLayout.setVisibility(View.VISIBLE);
+                scanBar.setVisibility(View.VISIBLE);
+                scanLayout.requestLayout();
+                scanLayout.bringToFront();
+                scanLayout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+
+                DisplayMetrics metrics = act.getResources().getDisplayMetrics();
+                paddingTop = Math.round(scanLayout.getMeasuredHeight() * metrics.density) + 2;
+                int goodAccountsPadding = Math.round(GOOD_ACCOUNTS_IMAGE_DP * metrics.density) + 5;
+                paddingTop += goodAccountsPadding;
+
+                features.print(TAG, "Padding top: " + paddingTop);
+                mMap.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
+
+                final Thread scanThread = new Thread() {
+                    public void run() {
+                        failedScanLogins = 0;
+
+                        Runnable circleRunnable = new Runnable() {
+                            @Override
+                            public void run() {
+                                if (scanCircle != null) scanCircle.remove();
+                                scanCircle = mMap.addCircle(new CircleOptions().center(new LatLng(currentLat, currentLon)).strokeWidth(1).radius(scanDistance).strokeColor(Color.argb(128, 0, 0, 255)));
+                            }
+                        };
+                        features.runOnMainThread(circleRunnable);
+
+                        features.print(TAG, "Scan distance: " + scanDistance);
+
+                        totalNearbyPokemon.clear();
+                        totalEncounters.clear();
+                        totalWildEncounters.clear();
+
+                        nearbyBackgroundPokemon.clear();
+                        wildBackgroundPokemon.clear();
+
+                        Vector2D[] boxPoints = getSearchPoints(scanDistance);
+
+                        long SCAN_INTERVAL;
+
+                        if (isHexMode) {
+                            final float HEX_DISTANCE = (float) Math.sqrt(3)*MAX_SCAN_RADIUS;
+                            SCAN_INTERVAL = Math.round(HEX_DISTANCE / scanSpeed * 1000);
+                        } else {
+                            final int MINI_SQUARE_SIZE = (int) Math.sqrt(Math.pow(MapHelper.MAX_SCAN_RADIUS * 2, 2) / 2);
+                            SCAN_INTERVAL = Math.round(MINI_SQUARE_SIZE / scanSpeed * 1000);
+                        }
+
+                        long minScanTime = (long) MapHelper.minScanTime * 1000;
+
+                        features.print(TAG, "Scan interval: " + SCAN_INTERVAL);
+                        features.print(TAG,  "Min scan time: " + minScanTime * 1000);
+                        features.print(TAG, "Center coord is: (" + currentLat + ", " + currentLon + ")");
+
+                        SCAN_INTERVAL = Math.max(SCAN_INTERVAL, minScanTime);
+
+                        scanBar.setMax(NUM_SCAN_SECTORS);
+
+                        scanPointCircles.clear();
+                        scanPoints.clear();
+
+                        features.resetMapObjects();
+
+                        // Start the new scanning method
+
+                        int scansPerWorker = boxPoints.length / goodAccounts.size();
+                        int extraScans = boxPoints.length - scansPerWorker * goodAccounts.size();
+                        int cursor = 0;
+                        ArrayList<Future> scanThreads = new ArrayList<>();
+
+                        int workersPerThread = goodAccounts.size() / MAX_POOL_THREADS;
+                        int extraWorkers = goodAccounts.size() - workersPerThread * MAX_POOL_THREADS;
+                        int workerCursor = 0;
+
+                        LatLng center = new LatLng(currentLat, currentLon);
+
+                        ArrayList<ArrayList<AccountScanner>> workerList = new ArrayList<>();
+
+                        for (int n = 0; n < MAX_POOL_THREADS; n++) {
+                            int numWorkers = workersPerThread;
+                            if (extraWorkers > 0) {
+                                extraWorkers--;
+                                numWorkers++;
+                            }
+
+                            ArrayList<AccountScanner> workers = new ArrayList<>();
+
+                            for (int x = 0; x < numWorkers; x++) {
+                                Account account = goodAccounts.get(workerCursor++);
+                                AccountScanner scanner = new AccountScanner(account, new ArrayList<Vector2D>());
+                                workers.add(scanner);
+                            }
+
+                            workerList.add(workers);
+                        }
+
+                        //while (cursor < boxPoints.length) {
+                        for (int n = 0; n < workersPerThread + 1; n++) {
+                            for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                                if (n >= scanAccounts.size()) continue;
+                                AccountScanner scanner = scanAccounts.get(n);
+
+                                int numScans = scansPerWorker;
+                                if (extraScans > 0) {
+                                    extraScans--;
+                                    numScans++;
+                                }
+
+                                if (numScans == 0) continue;
+
+                                for (int y = 0; y < numScans; y++) {
+                                    scanner.points.add(boxPoints[cursor]);
+                                    cursor++;
+                                }
+                            }
+                        }
+                        //}
+
+                        for (ArrayList<AccountScanner> scanAccounts : workerList) {
+                            ArrayList<AccountScanner> usableAccounts = new ArrayList<>();
+                            for (AccountScanner scanner : scanAccounts) {
+                                if (!scanner.points.isEmpty()) usableAccounts.add(scanner);
+                            }
+
+                            scanThreads.add(accountScanBackground(usableAccounts, SCAN_INTERVAL, center));
+                        }
+
+                        // Insert individual scans here
+
+                        while (AccountManager.isScanning()) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                // do nothing here. do it below
+                            }
+                            if (abortScan) {
+                                for (Future thread : scanThreads) {
+                                    thread.cancel(true);
+                                }
+                                scanning = false;
+
+                                break;
+                            }
+                        }
+
+                        Runnable dismissRunnable = new Runnable() {
+                            @Override
+                            public void run() {
+                                removeScanPoints();
+                                if (!showScanDetails) {
+                                    removeScanPointCircles();
+                                }
+
+                                scanLayout.setVisibility(View.GONE);
+
+                                DisplayMetrics metrics = act.getResources().getDisplayMetrics();
+                                int paddingTop = Math.round(GOOD_ACCOUNTS_IMAGE_DP * metrics.density) + 5;
+                                mMap.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
+                            }
+                        };
+                        features.runOnMainThread(dismissRunnable);
+
+                        scanning = false;
+
+                        backgroundCaptchasLost = 0;
+                        for (int n = 0; n < goodAccounts.size(); n++) {
+                            if (goodAccounts.get(n).getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED) {
+                                backgroundCaptchasLost++;
+                            }
+                        }
+
+                        if (backgroundCaptchasLost > 0) {
+                            if (captchaNotifications) sendNotification(backgroundCaptchasLost + " accounts got captcha'd in the last scan", "You now have " + AccountManager.getGoodAccounts().size() + " good accounts.", act);
+                        }
+
+                        if (backgroundIncludeNearby) {
+                            // Get rid of the duplicates that are already on the map
+                            for (Long encounterId : wildBackgroundPokemon.keySet()) {
+                                nearbyBackgroundPokemon.remove(encounterId);
+                            }
+
+                            ArrayList<String> nearbyPokes = new ArrayList<>();
+
+                            for (Long encounterId : nearbyBackgroundPokemon.keySet()) {
+                                String name = nearbyBackgroundPokemon.get(encounterId);
+
+                                if (!notifiedNearbies.contains(encounterId)) {
+                                    notifiedNearbies.add(encounterId);
+                                    nearbyPokes.add(name);
+                                }
+                            }
+
+                            if (!nearbyPokes.isEmpty()) sendNearbyNotification(nearbyPokes, act);
+                            else print("No nearby background pokes that weren't already included in wilds");
+                        }
+
+                        // Report on the Pokemon we found
+                        ArrayList<String> wildPokes = new ArrayList<>();
+                        ArrayList<String> wildPokeIvs = new ArrayList<>();
+
+                        for (Long encounterId : wildBackgroundPokemon.keySet()) {
+                            String name = wildBackgroundPokemon.get(encounterId);
+                            String ivs = wildBackgroundPokemonIvs.get(encounterId);
+
+                            if (!notifiedWilds.contains(encounterId)) {
+                                notifiedWilds.add(encounterId);
+                                wildPokes.add(name);
+                                wildPokeIvs.add(ivs);
+                            }
+                        }
+
+                        if (!wildBackgroundPokemon.isEmpty()) sendCatchableNotification(wildPokes, wildPokeIvs, act);
+
+
+                        if (PokeFinderActivity.instance.inBackground) PokeFinderActivity.instance.startBackgroundScanTimer();
+                    }
+                };
+
+                scanLayout.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        scanThread.interrupt();
+                        abortScan = true;
+                        scanLayout.setVisibility(View.GONE);
+
+                        DisplayMetrics metrics = act.getResources().getDisplayMetrics();
+                        int paddingTop = Math.round(GOOD_ACCOUNTS_IMAGE_DP * metrics.density) + 5;
+
+                        mMap.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom);
+
+                        removeScanPoints();
+                        if (!showScanDetails) {
+                            removeScanPointCircles();
+                        }
+                    }
+                });
+
+                scanThread.start();
+            }
+        };
+
+        features.runOnMainThread(main);
+    }
+
+    public void sendCatchableNotification(ArrayList<String> pokemon, ArrayList<String> ivs, Context con) {
+        String message = "";
+        String title = "";
+
+        if (pokemon.isEmpty()) return;
+
+        if (pokemon.size() > 1) {
+            for (int n = 0; n < pokemon.size(); n++) {
+                String poke = pokemon.get(n);
+
+                String iv = ivs.get(n).equals("") ? "" : ivs.get(n) + "%";
+
+                if (n < pokemon.size() - 1) {
+                    message += poke + " " + iv + ", ";
+                } else {
+                    message += "and " + poke + " " + iv;
+                }
+            }
+        } else {
+            message = pokemon.get(0) + " " + ivs.get(0) + "%";
+        }
+
+        message = "Found " + message;
+
+        message = message.replaceAll(" \\%", "");
+
+        title = "Found " + pokemon.size() + " Pokemon on the map!";
+
+        sendNotification(title, message, con);
+    }
+
+    public void sendNearbyNotification(ArrayList<String> pokemon, Context con) {
+        String message = "";
+        String title = "";
+
+        if (pokemon.isEmpty()) return;
+
+        if (pokemon.size() > 1) {
+            for (int n = 0; n < pokemon.size(); n++) {
+                String poke = pokemon.get(n);
+
+                if (n < pokemon.size() - 1) {
+                    message += poke + ", ";
+                } else {
+                    message += "and " + poke;
+                }
+            }
+        } else {
+            message = pokemon.get(0);
+        }
+
+        message = "Detected " + message;
+
+        title = pokemon.size() + " nearby Pokemon were not found!";
+
+        sendNotification(title, message, con);
+    }
+
+    public void sendNotification(String title, String message, Context con) {
+        NotificationCompat.Builder mBuilder =
+                new NotificationCompat.Builder(con)
+                        .setSmallIcon(R.drawable.ic_notification)
+                        .setContentTitle(title)
+                        .setContentText(message)
+                        .setDefaults(Notification.DEFAULT_ALL);
+
+        if (Build.VERSION.SDK_INT >= 16) {
+            mBuilder.setPriority(Notification.PRIORITY_HIGH);
+        }
+
+        // Creates an explicit intent for an Activity in your app
+        Intent resultIntent = new Intent(con, PokeFinderActivity.class);
+        resultIntent.setAction(Intent.ACTION_MAIN);
+        resultIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        resultIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        //resultIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        PendingIntent contentIntent = PendingIntent.getActivity(act, 0, resultIntent, 0);
+        mBuilder.setContentIntent(contentIntent);
+        NotificationManager mNotificationManager =
+                (NotificationManager) con.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        // mId allows you to update the notification later on.
+        Notification notification = mBuilder.build();
+        //notification.flags |= Notification.FLAG_ONGOING_EVENT;
+        mNotificationManager.notify((int) System.currentTimeMillis(), notification);
+    }
+
+    public Future accountScanBackground(final ArrayList<AccountScanner> scanners, final long SCAN_INTERVAL, final LatLng center) {
+        for (AccountScanner scanner : scanners) {
+            scanner.account.setScanning(true);
+        }
+
+        Runnable scanThread = new Runnable() {
+            public void run() {
+                boolean stillScanning = true;
+                boolean first = true;
+                while (stillScanning) {
+                    stillScanning = false;
+
+                    for (AccountScanner scanner : scanners) {
+                        if (scanner.account.isScanning()) {
+                            stillScanning = true;
+                            break;
+                        }
+                    }
+
+                    if (abortScan) {
+                        for (AccountScanner scanner : scanners) {
+                            scanner.account.setScanning(false);
+                        }
+                        return;
+                    }
+
+                    try {
+                        if (first) {
+                            Thread.sleep(1000);
+                            first = false;
+                        }
+                        else Thread.sleep(SCAN_INTERVAL);
+                    } catch (InterruptedException e) {
+                        if (abortScan) {
+                            for (AccountScanner scanner : scanners) {
+                                scanner.account.setScanning(false);
+                            }
+                            return;
+                        }
+                    }
+
+                    for (final AccountScanner scanner : scanners) {
+                        if (!scanner.account.isScanning()) continue;
+
+                        assignRequestHandler(scanner.account);
+
+                        if (abortScan) {
+                            for (int n = 0; n < scanners.size(); n++) {
+                                scanners.get(n).account.setScanning(false);
+                            }
+                            return;
+                        }
+
+                        if (scanner.repeat) {
+                            if (showScanDetails && scanner.account.circle != null) {
+                                Runnable runnable = new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        scanner.account.circle.remove();
+                                        scanPointCirclesDetailed.remove(scanner.account.circle);
+                                    }
+                                };
+                                features.runOnMainThread(runnable);
+                            }
+                            scanner.pointCursor--;
+                            scanner.failedSectors--;
+                            currentSector--;
+                        }
+                        scanner.repeat = false;
+
+                        if (scanner.pointCursor >= scanner.points.size()) {
+                            scanner.account.setScanning(false);
+                            continue;
+                        }
+
+                        final LatLng loc = cartesianToCoord(scanner.points.get(scanner.pointCursor), center);
+                        scanner.pointCursor++;
+
+                        try {
+                            Runnable progressRunnable = new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (scanPointIcon == null) setScanPointIcon(BitmapDescriptorFactory.fromResource(R.drawable.scan_point_icon));
+                                    updateScanLayout();
+                                    updateScanPoint(loc, scanner.account);
+                                }
+                            };
+                            features.runOnMainThread(progressRunnable);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        scanner.repeat = !scanForPokemonBackground(scanner, loc.latitude, loc.longitude);
+
+                        while ((use2Captcha && scanner.account.isSolvingCaptcha()) && !abortScan) {
+                            try {
+                                scanner.repeat = true;
+                                Thread.sleep(1000);
+                                if (abortScan) {
+                                    for (int n = 0; n < scanners.size(); n++) {
+                                        scanners.get(n).account.setScanning(false);
+                                    }
+                                    return;
+                                }
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                                if (abortScan) {
+                                    for (int n = 0; n < scanners.size(); n++) {
+                                        scanners.get(n).account.setScanning(false);
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+
+                        if (scanner.account.getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED) {
+                            print(scanner.account.getUsername() + " is aborting from a captcha.");
+                            scanner.account.setScanning(false);
+                            removeMyScanPoint(scanner.account);
+                            continue;
+                        }
+
+                        if (!scanner.repeat && scanner.pointCursor == scanner.points.size()) {
+                            print(scanner.account.getUsername() + " is finished scanning.");
+                            scanner.account.setScanning(false);
+                            removeMyScanPoint(scanner.account);
+                        }
+                    }
+                }
+
+                for (AccountScanner scanner : scanners) {
+                    scanner.account.setScanning(false);
+                    removeMyScanPoint(scanner.account);
+                }
+            }
+        };
+
+        return run(scanThread);
+    }
+
+    public boolean scanForPokemonBackground(AccountScanner scanner, double lat, double lon) {
+        Account account = scanner.account;
+        PokemonGo go = account.go;
+        final ArrayList<Long> removables = new ArrayList<>();
+        try {
+            if (useNewApi && PokeHashProvider.exceededRpm && !fallbackApi) {
+                showErrorCircle(account);
+                return true;
+            }
+            features.print(TAG, "Scanning (" + lat + "," + lon + ")...");
+
+            go.setLocation(lat, lon, 0);
+            Thread.sleep(200);
+            try {
+                features.refreshMapObjects(account);
+            } catch (Exception c) {
+                if (c instanceof CaptchaActiveException) {
+                    showCaptchaCircle(account);
+                }
+                account.checkExceptionForCaptcha(c);
+            }
+            Thread.sleep(200);
+
+            scanner.activeSpawns.clear();
+
+            if (use2Captcha) {
+                if (account.getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED || account.getStatus() == Account.AccountStatus.SOLVING_CAPTCHA) {
+                    showCaptchaCircle(account);
+                    return false;
+                }
+            } else {
+                if (captchaModePopup) {
+                    if (features.checkForCaptcha(account)) {
+                        showCaptchaCircle(account);
+                        return false;
+                    }
+                } else {
+                    if (account.getStatus() == Account.AccountStatus.CAPTCHA_REQUIRED) {
+                        showCaptchaCircle(account);
+                        return false;
+                    }
+                }
+            }
+
+            DateFormat df = null;
+            if (collectSpawns) df = new SimpleDateFormat("mm:ss");
+
+            // Figure out which pokemon in noTimes would show up in this search
+            // All these Pokemon should show up in this search. Otherwise they must've despawned
+            ArrayList<WildPokemonTime> currentPokes = getNoTimePokesInSector(lat, lon);
+
+            final List<CatchablePokemon> wildPokes = features.getCatchablePokemon(account, 15);
+
+            for (CatchablePokemon poke : wildPokes) {
+                if (poke.getPokemonId().getNumber() > Features.NUM_POKEMON) activateGen2();
+                if (collectSpawns && addSpawnInfo(poke)) {
+                    newSpawns++;
+
+                    print("Found new spawn: " + poke.getSpawnPointId());
+                }
+                searchedSpawns.add(poke.getSpawnPointId());
+
+                int pokedexNumber = poke.getPokemonId().getNumber();
+
+                try {
+                    if (collectSpawns) {
+                        Spawn mySpawn = spawns.get(poke.getSpawnPointId());
+                        if (mySpawn != null) {
+                            long time = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+                            print("Spawn point " + mySpawn.id + " despawns at minute " + mySpawn.despawnMinute + " and second " + mySpawn.despawnSecond);
+                            if (time > 0 && time <= 3600000) {
+                                if (mySpawn.despawnMinute < 0 || mySpawn.despawnSecond < 0) {
+                                    long expTime = poke.getExpirationTimestampMs();
+                                    Date date = new Date(expTime);
+                                    String[] timeStrings = df.format(date).split(":");
+                                    mySpawn.despawnMinute = Integer.parseInt(timeStrings[0]);
+                                    mySpawn.despawnSecond = Integer.parseInt(timeStrings[1]);
+                                    print("We found the despawn time for spawn " + poke.getSpawnPointId() + ". It despawns at the " + timeStrings[0] + " minute and " + timeStrings[1] + " second mark!");
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Crashlytics.logException(e);
+                }
+
+                if (!features.filter.get(pokedexNumber) && (!backgroundScanIvs || !overrideEnabled)) continue;
+
+                totalWildEncounters.add(poke.getEncounterId());
+
+                if (!scanner.activeSpawns.contains(poke.getSpawnPointId())) scanner.activeSpawns.add(poke.getSpawnPointId());
+
+                if ((!pokeTimes.containsKey(poke.getEncounterId()) && !noTimes.containsKey(poke.getEncounterId())) || ((poke.getExpirationTimestampMs() > 0 && poke.getExpirationTimestampMs() - System.currentTimeMillis() > 0 && poke.getExpirationTimestampMs() - System.currentTimeMillis() <= 3600000) && noTimes.containsKey(poke.getEncounterId()))) {
+                    try {
+                        //removables.add(poke.getEncounterId()); // If it's in noTimes and makes it here, that means we need to update the timer
+                        for (WildPokemonTime temp : noTimes.values()) {
+                            if (temp.getSpawnID().equals(poke.getSpawnPointId())) {
+                                removables.add(temp.getPoke().getEncounterId());
+                            }
+                        }
+
+                        for (Long temp : removables) {
+                            noTimes.remove(temp);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+
+                    long timeMs = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+
+                    try {
+                        if (collectSpawns) {
+                            Spawn mySpawn = spawns.get(poke.getSpawnPointId());
+                            if (mySpawn != null) {
+                                if (mySpawn.despawnMinute >= 0 && mySpawn.despawnSecond >= 0) {
+                                    Date date = new Date(System.currentTimeMillis());
+                                    String[] timeStrings = df.format(date).split(":");
+                                    int currentMinute = Integer.parseInt(timeStrings[0]);
+                                    int currentSecond = Integer.parseInt(timeStrings[1]);
+                                    int currentTotalSeconds = currentMinute * 60 + currentSecond;
+                                    int despawnTotalSeconds = mySpawn.despawnMinute * 60 + mySpawn.despawnSecond;
+                                    if (despawnTotalSeconds < currentTotalSeconds)
+                                        despawnTotalSeconds += 3600;
+
+                                    int diffSeconds = despawnTotalSeconds - currentTotalSeconds;
+
+                                    timeMs = diffSeconds * 1000;
+
+                                    print("Calculated despawn time for " + mySpawn.id + " is " + timeMs);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+
+                    if (timeMs > 0 && timeMs <= 3600000) {
+                        long despawnTime = System.currentTimeMillis() + timeMs;
+                        pokeTimes.put(poke.getEncounterId(), new WildPokemonTime(poke, despawnTime));
+                        features.print(TAG, poke.getPokemonId() + " will despawn at " + despawnTime);
+                    } else if (timeMs < 0 || timeMs > 3600000) {
+                        noTimes.put(poke.getEncounterId(), new WildPokemonTime(poke, System.currentTimeMillis(), poke.getSpawnPointId()));
+                    }
+                }
+
+            }
+
+            final List<CatchablePokemon> pokes = features.getCatchablePokemon(account, 15);
+            final List<NearbyPokemon> nearbyPokes = features.getNearbyPokemon(account, 15);
+
+            // If a current Pokemon is not found on rescanning this sector, it must be gone
+            for (WildPokemonTime currentPoke : currentPokes) {
+                boolean contains = false;
+                for (CatchablePokemon poke : wildPokes) {
+                    if (poke.getEncounterId() == currentPoke.getEncounterID()) {
+                        contains = true;
+                        break;
+                    }
+                }
+                if (!contains) {
+                    features.print(TAG, "Looks like " + currentPoke.getPoke().getPokemonId().name() + " with encounter ID " + currentPoke.getEncounterID() + " is no longer at spawn point " + currentPoke.getSpawnID() + ". Gonna remove it now.");
+                    removables.add(currentPoke.getEncounterID());
+                    noTimes.remove(currentPoke.getEncounterID());
+                    pokeTimes.remove(currentPoke.getEncounterID());
+                }
+            }
+
+            if (wildPokes.isEmpty() && pokes.isEmpty() && nearbyPokes.isEmpty()) {
+                showEmptyResultsCircle(account);
+            } else {
+                showGoodCircle(account);
+            }
+
+            for (NearbyPokemon poke : nearbyPokes) {
+                int pokedexNumber = poke.getPokemonId().getNumber();
+
+                if (pokedexNumber > Features.NUM_POKEMON) activateGen2();
+
+                if (!features.filter.get(pokedexNumber)) continue;
+                totalNearbyPokemon.add(new NearbyPokemonGPS(poke, new LatLng(lat, lon)));
+                totalEncounters.add(poke.getEncounterId());
+                if (backgroundIncludeNearby && features.notificationFilter.get(pokedexNumber)) nearbyBackgroundPokemon.put(poke.getEncounterId(), getLocalName(poke.getPokemonId().getNumber()));
+            }
+
+            if (nearbyPokes.isEmpty()) features.print("PokeFinder", "No nearby pokes :(");
+            for (NearbyPokemon poke : nearbyPokes) {
+                features.print("PokeFinder", "Found NearbyPokemon: " + poke.getPokemonId().name());
+                features.print(TAG, "Distance in meters: " + poke.getDistanceInMeters());
+                //mMap.addCircle(new CircleOptions().center(new CLLocationCoordinate2D(go.getLatitude(), go.getLongitude())).radius(poke.getDistanceInMeters()));
+            }
+
+            if (wildPokes.isEmpty()) features.print("PokeFinder", "No wild pokes :(");
+            for (final CatchablePokemon poke : wildPokes) {
+                features.print("PokeFinder", "Found WildPokemon: " + poke.toString());
+
+                int pokedexNumber = poke.getPokemonId().getNumber();
+
+                if (!features.filter.get(pokedexNumber) && (!backgroundScanIvs || !overrideEnabled)) continue;
+
+                //String ivs = "";
+                ArrayList<String> ivHolder = new ArrayList<>();
+                ArrayList<String> moveHolder = new ArrayList<>();
+                ArrayList<String> heightWeightHolder = new ArrayList<>();
+                ArrayList<String> genderHolder = new ArrayList<>();
+                boolean hide = false;
+                if (backgroundScanIvs) {
+                    for (CatchablePokemon pokemon : pokes) {
+                        if (poke.getPokemonId().getNumber() > Features.NUM_POKEMON) activateGen2();
+                        if (poke.getSpawnPointId().equals(pokemon.getSpawnPointId())) {
+                            try {
+                                hide = encounterPokemon(poke, pokemon, ivHolder, moveHolder, heightWeightHolder, genderHolder, pokedexNumber);
+                            } catch (Throwable e) {
+                                if (!features.filter.get(pokedexNumber)) hide = true;
+
+                                account.checkExceptionForCaptcha(e);
+
+                                e.printStackTrace();
+                            }
+                            break;
+                        }
+                    }
+                } else if (!features.filter.get(pokedexNumber)) {
+                    features.print(TAG, "Filtered out " + poke.getPokemonId().name() + " for being a " + poke.getPokemonId().name());
+                    hide = true;
+                }
+
+                if (hide) {
+                    //features.print(TAG, "IV filtered out " + poke.getPokemonId().name() + " for having " + ivs);
+                    noTimes.remove(poke.getEncounterId());
+                    pokeTimes.remove(poke.getEncounterId());
+                    continue;
+                }
+
+                final Spawn finalSpawn = spawns.get(poke.getSpawnPointId());
+                final String myIvs = ivHolder.size() > 0 ? ivHolder.get(0) : "";
+                final String myMoves = moveHolder.size() > 0 ? moveHolder.get(0) : "";
+                final String myHeightWeight = heightWeightHolder.size() > 0 ? heightWeightHolder.get(0) : "";
+                final String gender = genderHolder.size() > 0 ? genderHolder.get(0) : "";
+
+                long tempTime = poke.getExpirationTimestampMs() - System.currentTimeMillis();
+
+                if (collectSpawns && finalSpawn != null && finalSpawn.despawnMinute >= 0 && finalSpawn.despawnSecond >= 0) {
+                    Date date = new Date(System.currentTimeMillis());
+                    String[] timeStrings = df.format(date).split(":");
+                    int currentMinute = Integer.parseInt(timeStrings[0]);
+                    int currentSecond = Integer.parseInt(timeStrings[1]);
+                    int currentTotalSeconds = currentMinute * 60 + currentSecond;
+                    int despawnTotalSeconds = finalSpawn.despawnMinute * 60 + finalSpawn.despawnSecond;
+                    if (despawnTotalSeconds < currentTotalSeconds) despawnTotalSeconds += 3600;
+
+                    int diffSeconds = despawnTotalSeconds - currentTotalSeconds;
+
+                    tempTime = System.currentTimeMillis() + diffSeconds * 1000;
+                }
+
+                final long time = tempTime;
+
+                Runnable r = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (pokeTimes.containsKey(poke.getEncounterId()) || noTimes.containsKey(poke.getEncounterId())) {
+                            if (time > 0 && time <= 3600000) {
+                                String ms = String.format("%06d", time);
+                                int sec = Integer.parseInt(ms.substring(0, 3));
+                                //features.print(TAG, "Time string: " + time);
+                                //features.print(TAG, "Time shifted: " + (Long.parseLong(time) >> 16));
+                                features.print(TAG, "Time till hidden seconds: " + sec + "s");
+                                //features.print(TAG, "Data for " + poke.getPokemonId() + ":\n" + poke);
+                                showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), true, myIvs, myMoves, myHeightWeight, gender);
+                            } else {
+                                features.print(TAG, "No valid expiry time given");
+                                showPokemonAt(poke.getPokemonId().name(), poke.getPokemonId().getNumber(), new LatLng(poke.getLatitude(), poke.getLongitude()), poke.getEncounterId(), false, myIvs, myMoves, myHeightWeight, gender);
+                            }
+                        } else {
+                            features.print(TAG, "Neither pokeTimes nor noTimes contains " + poke.getPokemonId() + " at spawn " + poke.getSpawnPointId() + " but it's trying to show on the map");
+                        }
+                    }
+                };
+
+                features.runOnMainThread(r);
+
+                String percent = myIvs;
+                int index = percent.indexOf("%");
+                if (index >= 0) {
+                    percent = percent.substring(index - 3, index + 1).trim();
+                    if (percent.substring(0,1).equals("M")) percent = percent.substring(1).trim();
+                    percent = percent.substring(0, percent.length() - 1);
+                }
+
+                if (features.notificationFilter.get(pokedexNumber)) {
+                    wildBackgroundPokemon.put(poke.getEncounterId(), getLocalName(pokedexNumber) + (gender.equals("") ? "" : " " + gender));
+                    wildBackgroundPokemonIvs.put(poke.getEncounterId(), percent);
+                }
+            }
+
+            saveSpawns();
+
+            // Now remove everything that needs to be removed
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (Long id : removables) {
+                            if (!noTimes.containsKey(id)) {
+                                Marker marker = pokeMarkers.remove(id);
+                                if (marker != null) marker.remove();
+                            }
+                        }
+                        removables.clear();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+                }
+            };
+            features.runOnMainThread(runnable);
+
+            return true;
+        } catch (Throwable e) {
+            e.printStackTrace();
+
+            if (account.checkExceptionForCaptcha(e)) {
+                showCaptchaCircle(account);
+            } else {
+                showErrorCircle(account);
+            }
+
+            // Now remove everything that needs to be removed
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (Long id : removables) {
+                            if (!noTimes.containsKey(id)) {
+                                Marker marker = pokeMarkers.remove(id);
+                                if (marker != null) marker.remove();
+                            }
+                        }
+                        removables.clear();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Crashlytics.logException(e);
+                    }
+                }
+            };
+            features.runOnMainThread(runnable);
+
+            return false;
+        }
+    }
+
+    // TODO End Background scanning + notification code
+
+    private static void initHandlers() {
+        /*if (requestHandlers == null) {
+            requestHandlers = new ArrayList<>();
+            for (int n = 0; n < MAX_POOL_THREADS; n++) {
+                requestHandlers.add(new RequestHandler(new OkHttpClient()));
+            }
+        }*/
+    }
+
+    public static void assignRequestHandler(Account account) {
+        /*initHandlers();
+        String threadName = Thread.currentThread().getName();
+        int start = threadName.lastIndexOf("-");
+        //int end = threadName.lastIndexOf("-");
+        int index = Integer.parseInt(threadName.substring(start+1)) - 1;
+        RequestHandler handler = requestHandlers.get(index);
+        if (account.go != null) {
+            handler.setApi(account.go);
+            account.go.setRequestHandler(handler);
+        }
+        account.requestHandler = handler;
+        account.httpClient = handler.client;
+        PokeFinderActivity.features.print("PokeFinder",account.getUsername() + " was assigned to request handler " + index + " and is on the thread " + threadName);*/
+    }
+
+    @Override
+    public boolean promptForApiKey(final Activity activity) {
+        // Prompt user for an API key if they don't have one. Return whether or not to proceed with the action
+        // This should be done in a thread so we can wait for user input without blocking UI thread
+        if (apiKeyPromptVisible) return false;
+
+        if (!newApiKey.equals("") && PokeHashProvider.isKeyExpired()) {
+            return true;
+        } else {
+            if (PokeFinderActivity.instance.inBackground) return false;
+
+            apiKeyPromptVisible = true;
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+                    builder.setTitle("Need API Key")
+                            .setMessage("You need a paid API key in order to login and scan. This isn't how I want it to be, but it's the only way to scan right now unfortunately, and it's out of my control.")
+                            .setPositiveButton("How do I get a key?", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    apiKeyPromptVisible = false;
+                                    activity.startActivity(new Intent(Intent.ACTION_VIEW,
+                                            Uri.parse(PAID_API_HELP_PAGE_URL)));
+                                }
+                            })
+                            .setNeutralButton("I have a key", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    askForApiKey(activity);
+                                }
+                            })
+                            .setNegativeButton("No Thanks", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    // Do nothing
+                                    apiKeyPromptVisible = false;
+                                }
+                            }).setCancelable(false);
+
+                    builder.create().show();
+
+                    if (PokeHashProvider.isKeyExpired()) features.longMessage("Your API key has expired. You will need a new one to keep scanning. They last 31 days from first use.");
+                }
+            };
+
+            activity.runOnUiThread(runnable);
+            return false;
+        }
+    }
+
+    public void askForApiKey(final Activity activity) {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+                View view = act.getLayoutInflater().inflate(R.layout.input_box, null);
+
+                TextView message = (TextView) view.findViewById(R.id.message);
+                final EditText input = (EditText) view.findViewById(R.id.input);
+
+                message.setText("Enter your PokeHash API key. This will let you use the latest reversed API provided by the PokeFarmer devs for a fee. Note this is not my system. It can be buggy/unavailable at times and I can't do anything about it.");
+                input.setText(PokeFinderActivity.mapHelper.newApiKey);
+                //input.selectAll();
+
+                builder.setTitle("Enter API Key")
+                        .setView(view)
+                        .setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                String text = input.getText().toString();
+
+                                if (text == null || text.equals("")) {
+                                    apiKeyPromptVisible = false;
+                                    return;
+                                }
+
+                                newApiKey = text;
+                                NativePreferences.lock();
+                                NativePreferences.putString(AndroidMapHelper.PREF_NEW_API_KEY, PokeFinderActivity.mapHelper.newApiKey);
+                                NativePreferences.unlock();
+
+                                apiKeyPromptVisible = false;
+
+                                AccountManager.tryTalkingToServer();
+                            }
+                        })
+                        .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                apiKeyPromptVisible = false;
+                            }
+                        });
+                builder.create().show();
+            }
+        };
+
+        PokeFinderActivity.features.runOnMainThread(runnable);
     }
 }

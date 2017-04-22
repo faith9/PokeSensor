@@ -15,7 +15,7 @@ public class ExceptionCatchingRunnable implements Runnable {
         try {
             runnable.run();
         } catch (Exception e) {
-            e.getStackTrace();
+            e.printStackTrace();
             Crashlytics.logException(e);
             //ErrorReporter.logException(e);
         }

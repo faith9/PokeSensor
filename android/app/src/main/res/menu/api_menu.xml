@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+      xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_api_help"
+        android:icon="@drawable/ic_action_help"
+        android:title="@string/action_help"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_buy_api"
+        android:icon="@drawable/ic_action_api"
+        android:title="@string/action_buy_api"
+        app:showAsAction="ifRoom" />
+</menu>

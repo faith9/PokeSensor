@@ -36,7 +36,7 @@ public abstract class MapHelper {
     public static final int LOCATION_UPDATE_INTERVAL = 5000;
     protected boolean locationOverride = false;
     public static int MAX_SCAN_RADIUS = 70;
-    public static final int MAX_SCAN_DISTANCE = 1000;
+    public static final int MAX_SCAN_DISTANCE = 2000;
     public static final int DEFAULT_SCAN_DISTANCE = 90;
     public static final int DEFAULT_SCAN_TIME = 40;
     public static final int DEFAULT_SCAN_SPEED = 20;
@@ -80,10 +80,18 @@ public abstract class MapHelper {
     public boolean clearMapOnScan = false;
     public boolean gpsModeNormal = true;
     public boolean use2Captcha = false;
-    public boolean useNewApi = false;
+    public boolean useNewApi = true;
     public boolean fallbackApi = true;
     public String captchaKey = "";
     public String newApiKey = "";
+    public boolean backgroundScanning = false;
+    public String backgroundInterval = "15";
+    public boolean backgroundIncludeNearby = true;
+    public boolean backgroundScanIvs = true;
+    public boolean captchaNotifications = true;
+    public boolean showMovesets = true;
+    public boolean showHeightWeight = false;
+    public boolean onlyScanSpawns = false;
 
     public synchronized boolean addSpawnInfo(CatchablePokemon pokemon) {
         if (spawns.containsKey(pokemon.getSpawnPointId())) {
@@ -281,8 +289,9 @@ public abstract class MapHelper {
     public abstract void saveSpawns();
     public abstract void loadSpawns();
     public abstract void deleteAllSpawns();
-    public abstract void wideSpawnScan();
+    public abstract void wideSpawnScan(boolean background);
     public abstract void refreshPrefs();
     public abstract void saveIVFilters();
     public abstract Marker showSpawnOnMap(Spawn spawn);
+    public abstract boolean promptForApiKey(Activity activity);
 }

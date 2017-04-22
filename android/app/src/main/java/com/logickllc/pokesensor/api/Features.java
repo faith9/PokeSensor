@@ -7,8 +7,8 @@ import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.api.map.fort.Pokestop;
 import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.api.map.pokemon.NearbyPokemon;
-import com.pokegoapi.exceptions.LoginFailedException;
-import com.pokegoapi.exceptions.RemoteServerException;
+import com.pokegoapi.exceptions.request.LoginFailedException;
+import com.pokegoapi.exceptions.request.RequestFailedException;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -27,9 +27,11 @@ public abstract class Features {
     public boolean provoking = false;
     public ConcurrentHashMap<Integer, Boolean> filter;
     public ConcurrentHashMap<Integer, Boolean> filterOverrides;
-    public static int NUM_POKEMON = 151;
+    public ConcurrentHashMap<Integer, Boolean> notificationFilter;
+    public static int NUM_POKEMON = 251;
     public static final String PREF_FILTER_STRING = "Filter";
     public static final String PREF_FILTER_OVERRIDES_STRING = "FilterOverrides";
+    public static final String PREF_NOTIFICATION_FILTER_STRING = "NotificationFilter";
     public static final String PREF_CUSTOM_IMAGES_STRING = "CustomImages";
     public static final String CUSTOM_IMAGES_FOLDER = "custom_pokemon/";
     public ArrayList<String> customImages = new ArrayList<>();
@@ -51,6 +53,8 @@ public abstract class Features {
     public abstract void saveFilter();
     public abstract void loadFilterOverrides();
     public abstract void saveFilterOverrides();
+    public abstract void loadNotificationFilter();
+    public abstract void saveNotificationFilter();
 
     public MapHelper getMapHelper() {
         return mapHelper;
@@ -68,7 +72,7 @@ public abstract class Features {
             try {
                 tryTalkingToServer(temp);
                 return true;
-            } catch (RemoteServerException e) {
+            } catch (RequestFailedException e) {
                 // Looks like we're logged in but the server is cranky
                 e.printStackTrace();
                 return true;
@@ -98,20 +102,20 @@ public abstract class Features {
 
     public String decode(String value) {
         if (PokeFinderActivity.instance.canDecode) {
-        try {
-            String result = "";
-            int digits = 10;
+            try {
+                String result = "";
+                int digits = 10;
 
-            for (int n = value.length() / digits - 1; n >= 0; n--) {
-                result += Character.valueOf((char) Integer.parseInt(value.substring(n * digits, (n + 1) * digits))).toString();
+                for (int n = value.length() / digits - 1; n >= 0; n--) {
+                    result += Character.valueOf((char) Integer.parseInt(value.substring(n * digits, (n + 1) * digits))).toString();
+                }
+
+                //print(TAG, "Decoded \"" + value + "\" as \"" + result + "\"");
+                return result;
+            } catch (Exception e) {
+                e.printStackTrace();
+                return "";
             }
-
-            //print(TAG, "Decoded \"" + value + "\" as \"" + result + "\"");
-            return result;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
-        }
         } else {
             return value;
         }
@@ -145,7 +149,7 @@ public abstract class Features {
         objects.put(account, (MapObjects) account.go.getMap().getMapObjects());
     }
 
-    public List<CatchablePokemon> getCatchablePokemon(Account account, int cells) throws LoginFailedException, RemoteServerException {
+    public List<CatchablePokemon> getCatchablePokemon(Account account, int cells) throws LoginFailedException, RequestFailedException {
         List<CatchablePokemon> catchablePokemons = new ArrayList<CatchablePokemon>();
         //MapObjects objects = go.getMap().getMapObjects(cells);
 
@@ -156,7 +160,7 @@ public abstract class Features {
         return catchablePokemons;
     }
 
-    public List<NearbyPokemon> getNearbyPokemon(Account account, int cells) throws LoginFailedException, RemoteServerException {
+    public List<NearbyPokemon> getNearbyPokemon(Account account, int cells) throws LoginFailedException, RequestFailedException {
         List<NearbyPokemon> nearbyPokemons = new ArrayList<>();
         //MapObjects objects = go.getMap().getMapObjects(cells);
 
@@ -167,7 +171,7 @@ public abstract class Features {
         return nearbyPokemons;
     }
 
-	/*public List<WildPokemonOuterClass.WildPokemon> getWildPokemon(Account account, int cells) throws LoginFailedException, RemoteServerException {
+	/*public List<WildPokemonOuterClass.WildPokemon> getWildPokemon(Account account, int cells) throws LoginFailedException, RequestFailedException {
 		List<WildPokemonOuterClass.WildPokemon> wildPokemons = new ArrayList<WildPokemonOuterClass.WildPokemon>();
 		//MapObjects objects = go.getMap().getMapObjects(cells);
 
@@ -178,11 +182,11 @@ public abstract class Features {
 		return wildPokemons;
 	}*/
 
-    public double getVisibleScanDistance() throws LoginFailedException, RemoteServerException {
+    public double getVisibleScanDistance() throws LoginFailedException, RequestFailedException {
         return AccountManager.getVisibleScanDistance();
     }
 
-    public double getMinScanRefresh() throws LoginFailedException, RemoteServerException {
+    public double getMinScanRefresh() throws LoginFailedException, RequestFailedException {
         return AccountManager.getMinScanRefresh();
     }
 
@@ -264,9 +268,28 @@ public abstract class Features {
 
         // Assume string is a binary string ordered by Pokemon #
         for (int n = 0; n < NUM_POKEMON; n++) {
-            String bit = Character.toString(filterString.charAt(n));
-            boolean showPokemon = bit.equals("1");
-            filter.put(n+1, showPokemon);
+            if (filterString.length() > n) {
+                String bit = Character.toString(filterString.charAt(n));
+                boolean showPokemon = bit.equals("1");
+                filter.put(n + 1, showPokemon);
+            } else {
+                filter.put(n + 1, true);
+            }
+        }
+    }
+
+    public void loadNotificationFilterFromString(String filterString) {
+        notificationFilter = new ConcurrentHashMap<>();
+
+        // Assume string is a binary string ordered by Pokemon #
+        for (int n = 0; n < NUM_POKEMON; n++) {
+            if (filterString.length() > n) {
+                String bit = Character.toString(filterString.charAt(n));
+                boolean showPokemon = bit.equals("1");
+                notificationFilter.put(n+1, showPokemon);
+            } else {
+                notificationFilter.put(n + 1, true);
+            }
         }
     }
 
@@ -275,9 +298,13 @@ public abstract class Features {
 
         // Assume string is a binary string ordered by Pokemon #
         for (int n = 0; n < NUM_POKEMON; n++) {
-            String bit = Character.toString(filterString.charAt(n));
-            boolean showPokemon = bit.equals("1");
-            filterOverrides.put(n+1, showPokemon);
+            if (filterString.length() > n) {
+                String bit = Character.toString(filterString.charAt(n));
+                boolean showPokemon = bit.equals("1");
+                filterOverrides.put(n+1, showPokemon);
+            } else {
+                filterOverrides.put(n + 1, false);
+            }
         }
     }
 

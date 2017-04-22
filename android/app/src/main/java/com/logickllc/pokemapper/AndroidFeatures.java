@@ -680,6 +680,32 @@ public class AndroidFeatures extends Features {
         NativePreferences.unlock();
     }
 
+    @Override
+    public void loadNotificationFilter() {
+        String defaultString = "";
+        for (int n = 0; n < NUM_POKEMON; n++) {
+            defaultString += "1";
+        }
+
+        NativePreferences.lock("load filter");
+        String filterString = NativePreferences.getString(PREF_NOTIFICATION_FILTER_STRING, defaultString);
+        NativePreferences.unlock();
+
+        loadNotificationFilterFromString(filterString);
+    }
+
+    @Override
+    public void saveNotificationFilter() {
+        String filterString = "";
+        for (int n = 0; n < NUM_POKEMON; n++) {
+            filterString += notificationFilter.get(n+1) ? "1" : "0";
+        }
+
+        NativePreferences.lock("save filter");
+        NativePreferences.putString(PREF_NOTIFICATION_FILTER_STRING, filterString);
+        NativePreferences.unlock();
+    }
+
     public void refreshAccounts() {
         if (getMapHelper().scanning) {
             longMessage("Can't refresh accounts while scanning.");

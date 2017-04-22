@@ -9,12 +9,22 @@
     <SwitchPreference
         android:defaultValue="true"
         android:key="ShowIvs"
-        android:title="Scan IVs" />
+        android:title="Scan IVs/Moveset" />
 
     <SwitchPreference
         android:defaultValue="true"
         android:key="IvsAlwaysVisible"
         android:title="IVs Always Visible" />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="ShowMovesets"
+        android:title="Show Movesets" />
+
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="ShowHeightWeight"
+        android:title="Show Height/Weight" />
 
     <SwitchPreference
         android:defaultValue="true"
@@ -42,18 +52,6 @@
         android:key="Use2Captcha"
         android:title="Use 2Captcha"
         android:summary="2Captcha is a paid automated captcha solving service"/>
-
-    <SwitchPreference
-        android:defaultValue="false"
-        android:key="UseNewApi"
-        android:title="Use New API"
-        android:summary="The new API requires a paid key"/>
-
-    <SwitchPreference
-        android:defaultValue="true"
-        android:key="FallbackApi"
-        android:title="Fallback to Old API"
-        android:summary="Use old API if new API fails for any reason"/>
 
     <SwitchPreference
         android:defaultValue="true"

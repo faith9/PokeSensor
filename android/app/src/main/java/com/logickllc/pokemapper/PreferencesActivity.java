@@ -19,6 +19,7 @@ import android.widget.TextView;
 import com.logickllc.pokesensor.api.AccountManager;
 import com.pokegoapi.util.PokeDictionary;
 import com.pokegoapi.util.Signature;
+import com.pokegoapi.util.hash.pokehash.PokeHashProvider;
 
 import java.util.Timer;
 import java.util.TimerTask;
@@ -62,14 +63,16 @@ public class PreferencesActivity extends AppCompatActivity {
                 }
             });
 
-            SwitchPreference useNewApi = (SwitchPreference) findPreference("UseNewApi");
+            /*SwitchPreference useNewApi = (SwitchPreference) findPreference("UseNewApi");
 
-            toggleFallbackApi(useNewApi.isChecked());
+            useNewApi.setTitle("Use Paid API (" + PokeHashProvider.VERSION_STRING + ")");
+
+            //toggleFallbackApi(useNewApi.isChecked());
 
             useNewApi.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
-                    toggleFallbackApi((boolean) newValue);
+                    //toggleFallbackApi((boolean) newValue);
 
                     if ((boolean) newValue) {
                         if (!PokeFinderActivity.mapHelper.newApiKey.equals("")) {
@@ -96,7 +99,7 @@ public class PreferencesActivity extends AppCompatActivity {
 
                     return true;
                 }
-            });
+            });*/
 
             SwitchPreference use2Captcha = (SwitchPreference) findPreference("Use2Captcha");
 
@@ -159,12 +162,16 @@ public class PreferencesActivity extends AppCompatActivity {
         public void toggleIvsAlwaysVisible(boolean isChecked) {
             SwitchPreference ivsAlwaysVisible = (SwitchPreference) findPreference("IvsAlwaysVisible");
             ivsAlwaysVisible.setEnabled(isChecked);
+            SwitchPreference showMovesets = (SwitchPreference) findPreference("ShowMovesets");
+            showMovesets.setEnabled(isChecked);
+            SwitchPreference showHeightWeight = (SwitchPreference) findPreference("ShowHeightWeight");
+            showHeightWeight.setEnabled(isChecked);
         }
 
-        public void toggleFallbackApi(boolean isChecked) {
+        /*public void toggleFallbackApi(boolean isChecked) {
             SwitchPreference fallbackApi = (SwitchPreference) findPreference("FallbackApi");
             fallbackApi.setEnabled(false);
-        }
+        }*/
 
         public void askForApiKey() {
             final SwitchPreference useNewApi = (SwitchPreference) findPreference("UseNewApi");
@@ -191,7 +198,7 @@ public class PreferencesActivity extends AppCompatActivity {
 
                                     if (text == null || text.equals("")) {
                                         useNewApi.setChecked(false);
-                                        toggleFallbackApi(false);
+                                        //toggleFallbackApi(false);
                                         return;
                                     }
 
@@ -206,7 +213,7 @@ public class PreferencesActivity extends AppCompatActivity {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
                                     useNewApi.setChecked(false);
-                                    toggleFallbackApi(false);
+                                    //toggleFallbackApi(false);
                                 }
                             });
                     builder.create().show();

@@ -22,8 +22,6 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 
-import static com.logickllc.pokesensor.api.AccountManager.accounts;
-
 public class AccountsActivity extends AppCompatActivity {
     ListView list;
     public AccountsAdapter adapter;
@@ -39,7 +37,7 @@ public class AccountsActivity extends AppCompatActivity {
 
         list = (ListView) findViewById(R.id.accountList);
 
-        if (!accounts.isEmpty()) {
+        if (!AccountManager.accounts.isEmpty()) {
             initAdapter();
         } else {
             showEmptyMessage();
@@ -52,7 +50,7 @@ public class AccountsActivity extends AppCompatActivity {
                 AlertDialog.Builder builder = new AlertDialog.Builder(act);
                 builder.setTitle("Delete Account?");
                 //builder.setMessage(R.string.loginMessage);
-                builder.setMessage("Are you sure you want to delete " + accounts.get(position).getUsername() + "?");
+                builder.setMessage("Are you sure you want to delete " + AccountManager.accounts.get(position).getUsername() + "?");
 
                 builder.setPositiveButton("Delete", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
@@ -91,7 +89,7 @@ public class AccountsActivity extends AppCompatActivity {
                         account.login(true);
                         break;
 
-                    case INVALID_CREDENTIALS:
+                    case WRONG_NAME_OR_PASSWORD:
                         AccountManager.showLoginScreen(account, act);
                         break;
 
@@ -101,6 +99,10 @@ public class AccountsActivity extends AppCompatActivity {
 
                     case ERROR:
                         account.login();
+                        break;
+
+                    case BANNED:
+                        PokeFinderActivity.features.longMessage("Niantic has banned your account from Pokemon Go. It will no longer work for scanning :(");
                         break;
                 }
             }
@@ -124,7 +126,23 @@ public class AccountsActivity extends AppCompatActivity {
                 return true;
 
             case R.id.action_delete_accounts:
-                AccountManager.deleteAllAccounts();
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("Delete All Accounts?").setMessage("Are you sure you want to delete all your accounts?")
+                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                AccountManager.deleteAllAccounts();
+                                showEmptyMessage();
+                            }
+                        })
+                        .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                // Do nothing
+                            }
+                        });
+
+                builder.create().show();
                 return true;
 
             default:
@@ -187,7 +205,9 @@ public class AccountsActivity extends AppCompatActivity {
 
                 try {
                     if (!csvText.equals("")) {
-                        CSVParser parser = CSVParser.parse(csvText, CSVFormat.DEFAULT.withRecordSeparator("\n"));
+                        CSVParser parser;
+                        if (csvText.contains(",")) parser = CSVParser.parse(csvText, CSVFormat.DEFAULT.withRecordSeparator("\n"));
+                        else parser = CSVParser.parse(csvText, CSVFormat.DEFAULT.withRecordSeparator("\n").withDelimiter(' '));
                         for (CSVRecord record : parser) {
                             try {
                                 String username = record.get(0).trim();
@@ -200,7 +220,7 @@ public class AccountsActivity extends AppCompatActivity {
 
                                 boolean dupe = false;
 
-                                for (Account tempAccount : accounts) {
+                                for (Account tempAccount : AccountManager.accounts) {
                                     if (tempAccount.getUsername().equals(newAccount.getUsername())) {
                                         AccountManager.decNumAccounts();
                                         dupe = true;
@@ -211,7 +231,7 @@ public class AccountsActivity extends AppCompatActivity {
                                 if (dupe) continue;
 
                                 newAccount.login();
-                                accounts.add(newAccount);
+                                AccountManager.accounts.add(newAccount);
 
                             } catch (Exception e) {
                                 e.printStackTrace();
@@ -239,7 +259,7 @@ public class AccountsActivity extends AppCompatActivity {
 
     public void exportAccounts() {
         String accountString = "";
-        for (Account account : accounts) {
+        for (Account account : AccountManager.accounts) {
             accountString += account.getUsername() + "," + account.getPassword() + "\n";
         }
         shareText(accountString);

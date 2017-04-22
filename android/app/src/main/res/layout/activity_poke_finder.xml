@@ -58,7 +58,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:gravity="bottom|center_horizontal" />
 
-        <com.aerserv.sdk.AerServBanner
+        <com.logickllc.pokesensor.api.FixedAerservBanner
             android:id="@+id/aerservBanner"
             android:layout_width="match_parent"
             android:layout_height="90dp"

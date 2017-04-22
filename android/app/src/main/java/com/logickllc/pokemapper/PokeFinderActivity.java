@@ -2,6 +2,8 @@ package com.logickllc.pokemapper;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.Application;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -44,9 +46,7 @@ import com.amazon.device.ads.AdListener;
 import com.amazon.device.ads.AdProperties;
 import com.amazon.device.ads.AdRegistration;
 import com.amazon.device.ads.AdTargetingOptions;
-import com.amazon.device.ads.InterstitialAd;
 import com.crashlytics.android.Crashlytics;
-import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
@@ -65,11 +65,11 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.logickllc.pokesensor.api.AccountManager;
+import com.logickllc.pokesensor.api.FixedAerservBanner;
 import com.logickllc.pokesensor.api.MapHelper;
 import com.logickllc.pokesensor.api.Messenger;
-import com.pokegoapi.main.PokemonMeta;
+import com.pokegoapi.api.settings.templates.TempFileTemplateProvider;
 import com.pokegoapi.util.hash.pokehash.PokeHashProvider;
-import com.squareup.leakcanary.LeakCanary;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -77,14 +77,13 @@ import java.math.BigInteger;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import POGOProtos.Enums.PokemonIdOuterClass;
 import io.fabric.sdk.android.Fabric;
 
 import static com.logickllc.pokemapper.AndroidFeatures.PREF_USERNAME;
@@ -123,17 +122,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public boolean isPrimaryAdVisible = true; //Flag for if the Amazon banner is showing (not used currently)
     public boolean isSecondaryAdVisible = false; //Flag for if the Admob banner is showing (not used currently)
     //public Timer bannerUpdateTimer = new Timer(); //Reloads the primary banner periodically. Secondary banner refreshes itself
-    public final long BANNER_REFRESH_RATE = 30000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
-    public Timer interstitialTimer = new Timer(); //Sets flag that allows interstitial to be shown only after a certain time has passed
-    public boolean primaryInterstitialFailed = false, secondaryInterstitialFailed = false; //Set when the interstitial fails to load
-    public final long INTERSTITIAL_SHOW_RATE = 300000; //Controls how often interstitials will be allowed to show
-    public boolean canShowInterstitial = false; //Flag for determining if interstitial can be shown when the app wants to show one
-    public InterstitialAd primaryInterstitial; //Holds the Amazon interstitial
-    public com.google.android.gms.ads.InterstitialAd secondaryInterstitial; //Holds the Admob interstitial
-    public final int AMAZON_INTERSTITIAL_TIMEOUT = 30000; //How long it takes for an Amazon interstitial request to timeout
-    public Timer retryInterstitialTimer = new Timer(); //Retries loading the interstitial after both fail
-    public final long RETRY_INTERSTITIAL_DELAY = 90000; //Delay for interstitial retry timer
-    public boolean primaryInterstitialLoaded = false, secondaryInterstitialLoaded = false; //Flag for whether interstitial has loaded yet
+    public final long BANNER_REFRESH_RATE = 60000; //Amount of time it takes to reload banner. Should have enough ad providers to get ads filled at this rate
     public boolean isMiddleBannerLoaded = false; // Artifact from an early implementation attempt. Should just leave it alone to make sure not to break current implementation
     public Hashtable<String, Integer> adNetworkPositions = new Hashtable<String, Integer>();
     private static final Integer AERSERV_DEFAULT_POSITION = 2;
@@ -152,6 +141,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public final String PREF_ASK_FOR_SUPPORT = "AskForSupport";
     public final String PREF_FIRST_COPYRIGHT_LOAD = "FirstCopyrightLoad";
     public final String PREF_FIRST_DECODE_LOAD = "FirstDecodeLoad";
+    public final String PREF_FIRST_SPAWN_LEARNING_LOAD = "FirstSpawnLearningLoad";
     public boolean canAskForSupport = true;
     public int appLoads = 0;
     public final int TARGET_APP_LOADS = 10;
@@ -167,17 +157,69 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     public LinearLayout rpmCountLayout;
     public TextView rpmCountView;
     private AdLayout primaryBanner = null;
-    private AerServBanner middleBanner = null;
+    private FixedAerservBanner middleBanner = null;
     private long lastAccountRetryTime = System.currentTimeMillis();
     private final long ACCOUNT_RETRY_TIME = 1800000;
-
+    private Timer backgroundScanTimer;
+    public boolean inBackground = false;
+    public boolean isCreated = false;
+    public boolean firstSpawnLearningLoad = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (isCreated) return;
+        else isCreated = true;
         super.onCreate(savedInstanceState);
         Fabric.with(this, new Crashlytics());
 
-        LeakCanary.install(this.getApplication());
+        this.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+
+            }
+
+            @Override
+            public void onActivityStarted(Activity activity) {
+                if (inBackground) {
+                    inBackground = !isAppInForeground(getApplicationContext());
+                    if (!inBackground) {
+                        features.print(TAG, "PokeSensor entered foreground");
+                        stopBackgroundTimer();
+                    }
+                }
+            }
+
+            @Override
+            public void onActivityResumed(Activity activity) {
+
+            }
+
+            @Override
+            public void onActivityPaused(Activity activity) {
+
+            }
+
+            @Override
+            public void onActivityStopped(Activity activity) {
+                if (!inBackground) {
+                    inBackground = !isAppInForeground(getApplicationContext());
+                    if (mapHelper.backgroundScanning && inBackground) {
+                        features.print(TAG, "PokeSensor entered background");
+                        startBackgroundScanTimer();
+                    }
+                }
+            }
+
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+
+            }
+
+            @Override
+            public void onActivityDestroyed(Activity activity) {
+
+            }
+        });
 
         NativePreferences.init(PreferenceManager.getDefaultSharedPreferences(this));
 
@@ -190,6 +232,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
         mapHelper.setFeatures(features);
         features.setMapHelper(mapHelper);
+
+        TempFileTemplateProvider.tempDirectory = this.getFilesDir().getAbsolutePath();
+
+        features.print(TAG, "Settings temp directory to " + TempFileTemplateProvider.tempDirectory);
 
         NativePreferences.lock("gpsModeNormal");
         mapHelper.gpsModeNormal = NativePreferences.getBoolean(AndroidMapHelper.PREF_GPS_MODE_NORMAL, true);
@@ -230,6 +276,8 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         NativePreferences.lock();
         boolean multi = NativePreferences.getBoolean(PREF_FIRST_MULTIACCOUNT_LOAD, true);
         boolean copyright = NativePreferences.getBoolean(PREF_FIRST_COPYRIGHT_LOAD, true);
+        firstSpawnLearningLoad = NativePreferences.getBoolean(PREF_FIRST_SPAWN_LEARNING_LOAD, true);
+
         NativePreferences.unlock();
 
         if (multi) {
@@ -243,6 +291,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         mapHelper.loadSpawns();
         features.loadFilter();
         features.loadFilterOverrides();
+        features.loadNotificationFilter();
         features.loadCustomImageUrls();
 
         NativePreferences.lock();
@@ -264,6 +313,8 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     protected void onStart() {
         super.onStart();
         Log.d(TAG, "PokeFinderActivity.onStart()");
+        //inBackground = false;
+        //stopBackgroundTimer();
         client.connect();
         if (dontRefreshAccounts) {
             dontRefreshAccounts = false;
@@ -344,7 +395,9 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     protected void onStop() {
         super.onStop();
         Log.d(TAG, "PokeFinderActivity.onStop()");
-        if (client != null && client.isConnected()) client.disconnect();
+        //inBackground = true;
+        if (client != null && client.isConnected() && !mapHelper.backgroundScanning) client.disconnect();
+        //if (mapHelper.backgroundScanning) startBackgroundScanTimer();
         mapHelper.saveSpawns();
     }
 
@@ -462,145 +515,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         updateThread.start();
     }
 
-    public void startInterstitialTimer() {
-        //start the countdown until we can show another interstitial
-        primaryInterstitialFailed = secondaryInterstitialFailed = false;
-        primaryInterstitialLoaded = secondaryInterstitialLoaded = false;
-        canShowInterstitial = false;
-
-        TimerTask task = new TimerTask() {
-
-            @Override
-            public void run() {
-                canShowInterstitial = true;
-            }
-
-        };
-        interstitialTimer = new Timer();
-        interstitialTimer.schedule(task, INTERSTITIAL_SHOW_RATE);
-        loadPrimaryInterstitial();
-    }
-
-    public void loadPrimaryInterstitial() {
-        //load the Amazon interstitial
-        primaryInterstitialLoaded = false;
-        primaryInterstitialFailed = false;
-        primaryInterstitial = new InterstitialAd(this);
-        primaryInterstitial.setTimeout(AMAZON_INTERSTITIAL_TIMEOUT);
-        primaryInterstitial.setListener(new AdListener() {
-
-            @Override
-            public void onAdCollapsed(Ad ad) {
-            }
-
-            @Override
-            public void onAdDismissed(Ad ad) {
-                startInterstitialTimer(); //start the countdown to show another interstitial
-            }
-
-            @Override
-            public void onAdExpanded(Ad ad) {
-            }
-
-            @Override
-            public void onAdFailedToLoad(Ad ad, AdError error) {
-                primaryInterstitialFailed = true;
-                loadSecondaryInterstitial();
-            }
-
-            @Override
-            public void onAdLoaded(Ad ad, AdProperties adProperties) {
-                primaryInterstitialLoaded = true;
-            }
-
-        });
-        AdTargetingOptions options = new AdTargetingOptions();
-        options.setAge(18);
-        primaryInterstitial.loadAd(options);
-    }
-
-    public void loadSecondaryInterstitial() {
-        //loads the Admob interstitial
-        secondaryInterstitialLoaded = false;
-        secondaryInterstitialFailed = false;
-        secondaryInterstitial = new com.google.android.gms.ads.InterstitialAd(this);
-        //secondaryInterstitial.setAdUnitId(GOOGLE_INTERSTITIAL_AD_ID);
-        secondaryInterstitial.setAdListener(new com.google.android.gms.ads.AdListener() {
-
-            @Override
-            public void onAdClosed() {
-                startInterstitialTimer();
-                super.onAdClosed();
-            }
-
-            @Override
-            public void onAdFailedToLoad(int errorCode) {
-                secondaryInterstitialFailed = true;
-                startRetryInterstitialTimer(); //both interstitials failed so we'll retry again in a little bit
-                super.onAdFailedToLoad(errorCode);
-            }
-
-            @Override
-            public void onAdLeftApplication() {
-                super.onAdLeftApplication();
-            }
-
-            @Override
-            public void onAdLoaded() {
-                secondaryInterstitialLoaded = true;
-                super.onAdLoaded();
-            }
-
-            @Override
-            public void onAdOpened() {
-                super.onAdOpened();
-            }
-
-        });
-        // TODO Make sure this is set correctly before publishing
-        AdRequest adRequest;
-        if (!IS_AD_TESTING) {
-            adRequest = new AdRequest.Builder()
-                    .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
-                    .setGender(AdRequest.GENDER_MALE)
-                    .build();
-        } else {
-            adRequest = new AdRequest.Builder()
-                    .setBirthday(new GregorianCalendar(1998, 1, 1).getTime()) // Set it to target 18 year old males, just a wild guess
-                    .setGender(AdRequest.GENDER_MALE)
-                    .addTestDevice(AdRequest.DEVICE_ID_EMULATOR) // Emulator
-                    .build();
-        }
-        secondaryInterstitial.loadAd(adRequest);
-    }
-
-    public void startRetryInterstitialTimer() {
-        //Log.e("Interstitial", "Starting interstitial retry timer for " + Long.toString(RETRY_INTERSTITIAL_DELAY) + " secs");
-        TimerTask task = new TimerTask() {
-
-            @Override
-            public void run() {
-                loadPrimaryInterstitial();
-            }
-
-        };
-        retryInterstitialTimer = new Timer();
-        retryInterstitialTimer.schedule(task, RETRY_INTERSTITIAL_DELAY);
-
-    }
-
-    public void showInterstitial() {
-        //show interstitial if possible
-        if (!canShowInterstitial) return;
-        if (primaryInterstitialLoaded) {
-            if (!primaryInterstitial.showAd()) {
-                if (secondaryInterstitialLoaded) secondaryInterstitial.show();
-            }
-        } else if (secondaryInterstitialLoaded) {
-            secondaryInterstitial.show();
-        }
-    }
-
     public void initAds() {
         calculateAerservBannerSize();
 
@@ -619,7 +533,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         float screenWidth = metrics.widthPixels / metrics.density;
         float screenHeight = metrics.heightPixels / metrics.density;
         float maxAdContainerHeightDip = Math.round(90 * metrics.density) + 2;
-        AerServBanner banner = (AerServBanner) findViewById(R.id.aerservBanner);
+        FixedAerservBanner banner = (FixedAerservBanner) findViewById(R.id.aerservBanner);
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) banner.getLayoutParams();
         // Make sure the measurement is in DIP
         Log.d(TAG, "Device size in DIP is: " + Float.toString(screenWidth) + "x" + Float.toString(screenHeight));
@@ -643,6 +557,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void pauseAds() {
+        timerManager.cancelAllTimers();
+        if (middleBanner == null) middleBanner = (FixedAerservBanner) findViewById(R.id.aerservBanner);
+        final FixedAerservBanner banner = middleBanner;
+        banner.pause();
         //pause the ads so none of them are refreshing while the app is in the background
         //retryInterstitialTimer.cancel();
     }
@@ -828,7 +746,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void hideAerservBanner() {
-        if (middleBanner == null) middleBanner = (AerServBanner) findViewById(R.id.aerservBanner);
+        if (middleBanner == null) middleBanner = (FixedAerservBanner) findViewById(R.id.aerservBanner);
         middleBanner.setVisibility(View.GONE);
     }
 
@@ -840,8 +758,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             Log.d(TAG, "Loading middle banner");
             final Activity act = this;
             hideAmazonBanner();
-            if (middleBanner == null) middleBanner = (AerServBanner) findViewById(R.id.aerservBanner);
-            final AerServBanner banner = middleBanner;
+            if (middleBanner == null) middleBanner = (FixedAerservBanner) findViewById(R.id.aerservBanner);
+            final FixedAerservBanner banner = middleBanner;
+            banner.setupClickListener();
+
             //banner.kill();
             banner.setVisibility(View.INVISIBLE);
             banner.bringToFront();
@@ -861,7 +781,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 // The preloading seems to make it work the way I want it to. Don't ask me why.
                 //config.setPreload(true);
                 // Only need to see debugging if I'm testing it. Duh!
-                if (true) config.setDebug(true);
+                if (IS_AD_TESTING) config.setDebug(true);
 
                 config.setEventListener(new AerServEventListener() {
 
@@ -879,6 +799,14 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                                             startBannerUpdateTimer(); // Load another ad after the allotted time
                                         } catch (Exception e) {
                                             loadNextBanner("AerServ");
+                                        }
+
+                                        if (IS_AD_TESTING) {
+                                            Random random = new Random();
+                                            if (random.nextBoolean()) {
+                                                banner.testRedirect("https://play.google.com/store/apps/details?id=com.ubercab.eats&hl=en");
+                                                //banner.testRedirect("market://details?id=com.ubercab.eats");
+                                            }
                                         }
                                     }
                                 };
@@ -904,7 +832,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                                         // The ad is ready to be loaded so now we load it. Not sure why but this was the only way I made it work
                                         try {
                                             banner.show();
-                                            banner.play();
+                                            //banner.play();
                                         } catch (Exception e) {
                                             loadNextBanner("AerServ");
                                         }
@@ -928,7 +856,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     public AerServBanner getAerservBannerInstance() {
         // This isn't currently used but could be at some point
-        final AerServBanner banner = (AerServBanner) findViewById(R.id.aerservBanner);
+        final FixedAerservBanner banner = (FixedAerservBanner) findViewById(R.id.aerservBanner);
         banner.setVisibility(View.INVISIBLE);
         return banner;
     }
@@ -942,7 +870,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 return true;
 
             case R.id.action_spawn_scan:
-                mapHelper.wideSpawnScan();
+                mapHelper.wideSpawnScan(false);
                 //mapHelper.spawnScan(mapHelper.spawns);
                 return true;
 
@@ -980,7 +908,6 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 return true;
 
             case R.id.action_facebook:
-                //if (IS_AD_TESTING) features.loadCaptcha("https://club.pokemon.com/us/pokemon-trainer-club/parents/sign-up", features.go);
                 facebook();
                 return true;
 
@@ -1011,6 +938,18 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
             case R.id.action_custom_images:
                 customImages();
+                return true;
+
+            case R.id.action_background_scanning:
+                backgroundScanning();
+                return true;
+
+            case R.id.action_discord:
+                discord();
+                return true;
+
+            case R.id.action_api:
+                paidApiKey();
                 return true;
         }
 
@@ -1049,6 +988,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
         mapHelper.setPaddingBottom(googleLogoPadding);
         mMap.setPadding(mapHelper.getPaddingLeft(), mapHelper.getPaddingTop(), mapHelper.getPaddingRight(), mapHelper.getPaddingBottom());
 
+        final Context mContext = this;
 
         try {
             if (mapHelper.gpsModeNormal) mMap.setMyLocationEnabled(true);
@@ -1069,7 +1009,8 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             @Override
             public boolean onMyLocationButtonClick() {
                 if (IS_AD_TESTING) {
-                    try {
+                    mapHelper.sendNotification("Test", "Testing notification system", mContext);
+                    /*try {
                         // enumerate pokemon and their types to make a lookup table
                         String types = "";
                         for (int n = 1; n <= 251; n++) {
@@ -1080,7 +1021,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                         features.print(TAG, types);
                     } catch (Exception e) {
                         e.printStackTrace();
-                    }
+                    }*/
                 } else {
                     mapHelper.setLocationOverride(true);
                     initLocation();
@@ -1091,7 +1032,7 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
         mMap.animateCamera(CameraUpdateFactory.zoomTo(AndroidMapHelper.DEFAULT_ZOOM));
 
-        final Context mContext = this;
+
 
         // Code from http://stackoverflow.com/questions/13904651/android-google-maps-v2-how-to-add-marker-with-multiline-snippet
         mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
@@ -1159,8 +1100,10 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     public void loadAccountsScreen() {
-        Intent intent = new Intent(this, AccountsActivity.class);
-        startActivity(intent);
+        if (AccountManager.accounts != null) {
+            Intent intent = new Intent(this, AccountsActivity.class);
+            startActivity(intent);
+        }
     }
 
     public void preferences() {
@@ -1170,6 +1113,11 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
 
     public void customImages() {
         Intent intent = new Intent(this, CustomImagesActivity.class);
+        startActivity(intent);
+    }
+
+    public void backgroundScanning() {
+        Intent intent = new Intent(this, BackgroundScanningActivity.class);
         startActivity(intent);
     }
 
@@ -1308,17 +1256,43 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
                 Uri.parse("https://www.facebook.com/Logick-LLC-984234335029611/")));
     }
 
+    public void discord() {
+        startActivity(new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://discord.gg/69m8NKW")));
+    }
+
+    public void paidApiKey() {
+        Intent intent = new Intent(this, ApiActivity.class);
+        startActivity(intent);
+    }
+
     public void contactUs() {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW,
-                    Uri.parse("mailto:logickllc@gmail.com")));
-        } catch(Exception e) {
-            if (e instanceof ActivityNotFoundException) {
-                features.longMessage(R.string.noMailActivity);
-            } else {
-                features.longMessage("Failed to start email client");
-            }
-        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Please Read Help Page")
+                .setMessage("Please read the official Help page before asking questions. 95% of user questions are covered in the Help page.")
+                .setPositiveButton("Read Help Page", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        help();
+                    }
+                })
+                .setNegativeButton("I Already Did", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        try {
+                            startActivity(new Intent(Intent.ACTION_VIEW,
+                                    Uri.parse("mailto:logickllc@gmail.com")));
+                        } catch(Exception e) {
+                            if (e instanceof ActivityNotFoundException) {
+                                features.longMessage(R.string.noMailActivity);
+                            } else {
+                                features.longMessage("Failed to start email client");
+                            }
+                        }
+                    }
+                }).setCancelable(false);
+
+        builder.create().show();
     }
 
     public void moreApps() {
@@ -1597,6 +1571,9 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             case 3:
                 return 128;
 
+            case 4:
+                return 256;
+
             default:
                 return 96;
         }
@@ -1682,5 +1659,58 @@ public class PokeFinderActivity extends AppCompatActivity implements OnMapReadyC
             }
         };
         features.runOnMainThread(runnable);
+    }
+
+    public void startBackgroundScanTimer() {
+        if (!PokeFinderActivity.mapHelper.promptForApiKey(this)) return;
+        features.print(TAG, "Scheduling background scan for " + mapHelper.backgroundInterval + " minutes");
+        features.shortMessage("Scheduling background scan for " + mapHelper.backgroundInterval + " minutes");
+
+        if (backgroundScanTimer != null) backgroundScanTimer.cancel();
+
+        backgroundScanTimer = new Timer();
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                features.print(TAG, "Starting background scan");
+                if (!mapHelper.onlyScanSpawns) mapHelper.wideScanBackground();
+                else mapHelper.wideSpawnScan(true);
+            }
+        };
+
+        long delay = 0;
+
+        try {
+            delay = Integer.parseInt(mapHelper.backgroundInterval) * 60000;
+        } catch (Exception e) {
+            e.printStackTrace();
+            delay = 15 * 60000;
+        }
+        backgroundScanTimer.schedule(task, delay);
+    }
+
+    public void stopBackgroundTimer() {
+        if (backgroundScanTimer != null) backgroundScanTimer.cancel();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+
+    }
+
+    // Retrieved from stack overflow http://stackoverflow.com/questions/5593115/run-code-when-android-app-is-closed-sent-to-background
+    private boolean isAppInForeground(Context context) {
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningAppProcessInfo> appProcesses = activityManager.getRunningAppProcesses();
+        if (appProcesses == null) {
+            return false;
+        }
+        final String packageName = context.getPackageName();
+        for (ActivityManager.RunningAppProcessInfo appProcess : appProcesses) {
+            if (appProcess.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND && appProcess.processName.equals(packageName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

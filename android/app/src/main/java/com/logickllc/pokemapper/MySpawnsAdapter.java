@@ -210,7 +210,7 @@ public class MySpawnsAdapter extends BaseAdapter {
             @Override
             public void run() {
                 PokeFinderActivity.mapHelper.moveMe(mySpawn.lat, mySpawn.lon, true, true);
-                PokeFinderActivity.mapHelper.spawnScan(mySpawnList);
+                PokeFinderActivity.mapHelper.spawnScan(mySpawnList, false);
             }
         };
 

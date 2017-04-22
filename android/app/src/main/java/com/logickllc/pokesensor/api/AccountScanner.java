@@ -28,4 +28,8 @@ public class AccountScanner {
         this.account = account;
         this.startSpawn = mySpawn;
     }
+
+    public AccountScanner(Account account) {
+        this.account = account;
+    }
 }

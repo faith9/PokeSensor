@@ -18,7 +18,7 @@ import java.net.URL;
 public class Messenger {
     public static final String PREF_LAST_MESSAGE_ID = "LastMessageId";
     public static int lastMessageId = -1;
-    public static final String MESSAGES_URL = "YOUR_MESSAGE_URL";
+    public static final String MESSAGES_URL = "https://raw.githubusercontent.com/MrPat/CardDragTest/master/error_log.txt";
     public static final String MESSAGES_FILE = "messages.txt";
     public static Messages messages = null;
 

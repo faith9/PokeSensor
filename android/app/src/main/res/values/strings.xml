@@ -30,6 +30,12 @@
     <string name="action_import_custom_images">Import Images</string>
     <string name="action_export_custom_images">Export Images</string>
     <string name="action_custom_images">Custom Pokemon Images</string>
+    <string name="action_background_scanning">Background Scanning Beta</string>
+    <string name="action_discord">Discord</string>
+    <string name="action_import_spawns">Import Spawns</string>
+    <string name="action_export_spawns">Export Spawns</string>
+    <string name="action_api">Paid API Key</string>
+    <string name="action_buy_api">Buy API Key</string>
 
     <string name="loginTitle">Login with a Pokemon Trainer Club account</string>
     <string name="loginMessage">This is an UNOFFICIAL login to the Pokemon Go servers, so you can get the Pokemon data straight from the source\n\nI recommend creating a dummy account to use with this app instead of your real account, in case scanning gets the account banned.\n\nLOGIN AT YOUR OWN RISK</string>
@@ -73,6 +79,9 @@
     <string name="title_activity_preferences">Preferences</string>
     <string name="title_activity_iv_override">IV Overrides</string>
     <string name="title_activity_custom_images">Custom Images</string>
+    <string name="title_activity_background_scanning">Background Scanning Beta</string>
+    <string name="title_activity_notification_filter">Notification Filter</string>
+    <string name="title_activity_api">Paid Api Key</string>
 
     <string name="scanTitle">Scan</string>
     <string name="scanDetailsTitle">Scan Details</string>
@@ -94,10 +103,11 @@
     <string name="logoutError">Failed to logout. Please try again in a few seconds</string>
 
     <string-array name="imageSizes">
-        <item>Small</item>
-        <item>Medium</item>
-        <item>Large</item>
-        <item>XL</item>
+        <item>Small (32px)</item>
+        <item>Medium (64px)</item>
+        <item>Large (96px)</item>
+        <item>XL (128px)</item>
+        <item>XXL (256px)</item>
     </string-array>
 
     <string-array name="imageSizeValues">
@@ -105,5 +115,6 @@
         <item>1</item>
         <item>2</item>
         <item>3</item>
+        <item>4</item>
     </string-array>
 </resources>

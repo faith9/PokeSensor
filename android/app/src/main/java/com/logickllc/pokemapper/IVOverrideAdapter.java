@@ -13,10 +13,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.ViewSwitcher;
 
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.logickllc.pokesensor.api.Features;
-import com.logickllc.pokesensor.api.MapHelper;
-import com.pokegoapi.main.PokemonMeta;
 
 import java.io.File;
 

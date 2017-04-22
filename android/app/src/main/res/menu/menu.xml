@@ -11,18 +11,6 @@
         android:id="@+id/action_accounts"
         android:icon="@drawable/ic_action_dual_accounts"
         android:title="@string/action_accounts"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_refresh_accounts"
-        android:icon="@drawable/ic_action_refresh_accounts"
-        android:title="@string/action_refresh_accounts"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_spawns"
-        android:icon="@drawable/ic_action_spawns"
-        android:title="@string/action_spawns"
         app:showAsAction="ifRoom" />
 
     <item
@@ -38,9 +26,33 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_refresh_accounts"
+        android:icon="@drawable/ic_action_refresh_accounts"
+        android:title="@string/action_refresh_accounts"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_preferences"
         android:icon="@drawable/ic_action_preferences"
         android:title="@string/action_preferences"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_api"
+        android:icon="@drawable/ic_action_api"
+        android:title="@string/action_api"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_spawns"
+        android:icon="@drawable/ic_action_spawns"
+        android:title="@string/action_spawns"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_background_scanning"
+        android:icon="@drawable/ic_action_background_scanning"
+        android:title="@string/action_background_scanning"
         app:showAsAction="ifRoom" />
 
     <item
@@ -83,6 +95,12 @@
         android:id="@+id/action_twitter"
         android:icon="@drawable/ic_action_twitter"
         android:title="@string/action_twitter"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_discord"
+        android:icon="@drawable/ic_action_discord"
+        android:title="@string/action_discord"
         app:showAsAction="ifRoom" />
 
     <item

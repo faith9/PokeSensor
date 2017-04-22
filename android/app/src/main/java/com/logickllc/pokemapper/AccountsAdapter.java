@@ -74,7 +74,7 @@ public class AccountsAdapter extends BaseAdapter {
                 holder.status.setImageResource(R.drawable.status_banned);
                 break;
 
-            case INVALID_CREDENTIALS:
+            case WRONG_NAME_OR_PASSWORD:
                 holder.status.setImageResource(R.drawable.status_error);
                 break;
 

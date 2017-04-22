@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.GET_TASKS"/>
 
     <!--
      These are required for Aerserv or I wouldn't need them. Trying it without them first.
@@ -30,7 +31,7 @@
             android:name=".PokeFinderActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:label="@string/title_activity_poke_finder"
-            android:launchMode="singleTop">
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
 
@@ -50,10 +51,6 @@
         <activity
             android:name="com.amazon.device.ads.AdActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"/>
-
-        <meta-data
-            android:name="io.fabric.ApiKey"
-            android:value="a18a1ef7c69488804a8e6bbc7740c0d47bddd751"/>
 
         <activity
             android:name="com.aerserv.sdk.view.AerServFullScreenAdActivity"
@@ -97,16 +94,14 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="com.logickllc.pokemapper.PokeFinderActivity"/>
         </activity>
-
         <activity
             android:name=".IVOverrideActivity"
             android:label="@string/title_activity_iv_override"
             android:parentActivityName=".IVFilterActivity">
-        <meta-data
-            android:name="android.support.PARENT_ACTIVITY"
-            android:value="com.logickllc.pokemapper.IVFilterActivity"/>
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.logickllc.pokemapper.IVFilterActivity"/>
         </activity>
-
         <activity
             android:name=".PreferencesActivity"
             android:label="@string/title_activity_preferences"
@@ -116,10 +111,35 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="com.logickllc.pokemapper.PokeFinderActivity"/>
         </activity>
-
         <activity
             android:name=".CustomImagesActivity"
             android:label="@string/title_activity_custom_images"
+            android:parentActivityName=".PokeFinderActivity"
+            android:screenOrientation="portrait">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.logickllc.pokemapper.PokeFinderActivity"/>
+        </activity>
+        <activity
+            android:name=".BackgroundScanningActivity"
+            android:label="@string/title_activity_background_scanning"
+            android:parentActivityName=".PokeFinderActivity"
+            android:screenOrientation="portrait">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.logickllc.pokemapper.PokeFinderActivity"/>
+        </activity>
+        <activity
+            android:name=".NotificationFilterActivity"
+            android:label="@string/title_activity_notification_filter"
+            android:parentActivityName=".BackgroundScanningActivity"
+            android:screenOrientation="portrait">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.logickllc.pokemapper.BackgroundScanningActivity"/>
+        </activity>
+        <activity android:name=".ApiActivity"
+            android:label="@string/title_activity_api"
             android:parentActivityName=".PokeFinderActivity"
             android:screenOrientation="portrait">
             <meta-data
