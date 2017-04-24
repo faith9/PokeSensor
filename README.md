@@ -1,6 +1,8 @@
 # PokeSensor
 Official source for the PokeSensor Android/iOS app. Official site is http://www.pokesensor.org
 
+Both were made in Android Studio. For the iOS version you'll need to be on a Mac with Xcode installed.
+
 ## Shoutouts
 
 ### Pokemon GO Java API 
