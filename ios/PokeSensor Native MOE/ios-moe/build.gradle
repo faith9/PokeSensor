@@ -1,0 +1,92 @@
+// Exclude all files from Gradle's test runner
+test { exclude '**' }
+
+task copyNatives << {
+    file("xcode/native/ios/").mkdirs();
+    def LD_FLAGS = "LIBGDX_NATIVES = "
+    configurations.natives.files.each { jar->
+        def outputDir = null
+        if (jar.name.endsWith("natives-ios.jar")) outputDir = file("xcode/native/ios")
+        if (outputDir != null) {
+            FileCollection fileCollection = zipTree(jar)
+            for (File libFile : fileCollection) {
+                if (libFile.getAbsolutePath().endsWith(".a") && !libFile.getAbsolutePath().contains("/tvos/")) {
+                    copy {
+                        from libFile.getAbsolutePath()
+                        into outputDir
+                    }
+                    LD_FLAGS += " -force_load \${SRCROOT}/native/ios/" + libFile.getName()
+                }
+            }
+        }
+    }
+    def outFlags = file("xcode/ios-moe/custom.xcconfig");
+    outFlags.write LD_FLAGS
+
+    def proguard = file("proguard.append.cfg")
+    //if (proguard.exists()) proguard.delete()
+
+    if (!proguard.exists()) {
+        proguard = new File("ios-moe/proguard.append.cfg")
+        proguard << '\n-keep class com.badlogic.** { *; }\n'
+        proguard << "-keep enum com.badlogic.** { *; }\n"
+        proguard << '-keep class com.logickllc.** { *; }\n'
+        proguard << '-keep enum com.logickllc.** { *; }\n'
+        proguard << '-keep class com.moe.bindings.** { *; }\n'
+        proguard << '-keep enum com.moe.bindings.** { *; }\n'
+        proguard << '-keep class de.tomgrill.gdxdialogs.** { *; }\n'
+        proguard << '-keep enum de.tomgrill.gdxdialogs.** { *; }\n'
+        proguard << '-keep class com.lemmingapex.** { *; }\n'
+        proguard << '-keep enum com.lemmingapex.** { *; }\n'
+        proguard << '-keep class POGOProtos.** { *; }\n'
+        proguard << '-keep enum POGOProtos.** { *; }\n'
+        proguard << '-keep class com.pokegoapi.** { *; }\n'
+        proguard << '-keep enum com.pokegoapi.** { *; }\n'
+        proguard << '-keep class net.jpountz.** { *; }\n'
+        proguard << '-keep enum net.jpountz.** { *; }\n'
+        proguard << '-keepdirectories\n'
+        proguard << '-keep interface apple.storekit.protocol.SKRequestDelegate { *; }\n'
+        proguard << '-keep interface apple.uikit.protocol.UIGestureRecognizerDelegate { *; }\n'
+        proguard << '-keep interface apple.uikit.protocol.UIActionSheetDelegate { *; }\n'
+        proguard << '-keep interface apple.uikit.protocol.UITableViewDelegate { *; }\n'
+        proguard << '-keep interface apple.storekit.protocol.SKProductsRequestDelegate { *; }\n'
+        proguard << '-keep interface apple.uikit.protocol.UISearchControllerDelegate { *; }\n'
+        proguard << '-keep interface apple.mapkit.protocol.MKMapViewDelegate { *; }\n'
+        proguard << '-keep interface apple.uikit.protocol.UITextFieldDelegate { *; }\n'
+        proguard << '-keep interface apple.corelocation.protocol.CLLocationManagerDelegate { *; }\n'
+    }
+}
+
+sourceSets.main.java.srcDirs = [ "src/" ]
+sourceSets.main.resources.srcDirs = [ file("../android/assets") ]
+
+// Setup Multi-OS Engine
+moe {
+    xcode {
+        project 'xcode/ios-moe.xcodeproj'
+        mainTarget 'ios-moe'
+        testTarget 'ios-moe-Test'
+    }
+}
+
+moeMainReleaseIphoneosXcodeBuild.dependsOn copyNatives
+moeMainDebugIphoneosXcodeBuild.dependsOn copyNatives
+moeMainReleaseIphonesimulatorXcodeBuild.dependsOn copyNatives
+moeMainDebugIphonesimulatorXcodeBuild.dependsOn copyNatives
+
+// Setup Eclipse
+eclipse {
+    // Set Multi-OS Engine nature
+    project {
+        natures 'org.multi-os-engine.project'
+    }
+}
+
+task verifyProguard(type: Exec) {
+    workingDir './'
+
+    commandLine 'python', 'proguardVerify.py'
+}
+moeMainProGuard {
+    dependsOn verifyProguard
+}

@@ -1,0 +1,77 @@
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.3.1'
+        classpath 'org.multi-os-engine:moe-gradle:1.3.6'
+    }
+}
+
+allprojects {
+    apply plugin: "eclipse"
+    apply plugin: "idea"
+
+    version = '1.0'
+    ext {
+        appName = "PokeSensor"
+        gdxVersion = '1.9.6'
+        gdxPayVersion = '0.10.3'
+        gdxDialogVersion = '1.2.0'
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
+    }
+}
+
+project(":android") {
+    apply plugin: "android"
+
+    configurations { natives }
+
+    dependencies {
+        compile project(":core")
+        compile "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
+    }
+}
+
+project(":ios-moe") {
+    apply plugin: "moe"
+
+    configurations { natives }
+
+    dependencies {
+        compile project(":core")
+        compile "com.badlogicgames.gdx:gdx-backend-moe:$gdxVersion"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-ios"
+        compile "de.tomgrill.gdxdialogs:gdx-dialogs-ios-moe:$gdxDialogVersion"
+
+        compile fileTree(dir: 'libs', include: '*.jar')
+    }
+}
+
+project(":core") {
+    apply plugin: "java"
+
+
+    dependencies {
+        compile "com.badlogicgames.gdx:gdx:$gdxVersion"
+        compile "de.tomgrill.gdxdialogs:gdx-dialogs-core:$gdxDialogVersion"
+
+        compile "com.badlogicgames.gdxpay:gdx-pay:$gdxPayVersion"
+        compile "com.badlogicgames.gdxpay:gdx-pay-client:$gdxPayVersion"
+    }
+}
+
+tasks.eclipse.doLast {
+    delete ".project"
+}
